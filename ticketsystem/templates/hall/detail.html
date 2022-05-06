@@ -1,0 +1,44 @@
+{% load static %}
+
+<link rel="stylesheet" type="text/css" href="{% static 'hall/style.css' %}">
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sahne - {{ hall.name }}</title>
+</head>
+<body>
+    <h1 align="center">{{ hall.name }}</h1>
+
+    <table align="center">
+        <tbody align="center">
+
+            {% for _, row_list in hall.seats.items %}
+                {% for row_dict in row_list %}
+                    {% for row, nums in row_dict.items %}
+                        {% if row == "-" %}
+                            <tr class="walk"><td class="walk"><br></td></tr>
+                        {% else %}
+                            <tr class="seat">
+                                <td class="row"> {{ row }} </td>
+                                {% for num in nums %}
+                                    {% if num == -1 %}
+                                        <td class="walk"></td>
+                                    {% else %}
+                                        <td class="seat">{{ num }}</td>
+                                    {% endif %}
+                                {% endfor %}
+                                <td class="row"> {{ row }} </td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</body>
+</html>
