@@ -10,6 +10,36 @@
 </head>
 <body>
     <h1 align="center">{{ event.name }}</h1>
+
     <a href="add">Gün Ekle</a>
+
+    <table align="center">
+        <tbody align="center">
+
+            {% for _, row_list in event.hall.seats.items %}
+                {% for row_dict in row_list %}
+                    {% for row, nums in row_dict.items %}
+                        {% if row == "-" %}
+                            <tr class="walk"><td class="walk"><br></td></tr>
+                        {% else %}
+                            <tr class="seat">
+                                <td class="row"> {{ row }} </td>
+                                {% for num in nums %}
+                                    {% if num == -1 %}
+                                        <td class="walk"></td>
+                                    {% else %}
+                                        <td class="seat"><a href="/click/{{tickets_dict.}}">{{ num }}</a></td>
+                                    {% endif %}
+                                {% endfor %}
+                                <td class="row"> {{ row }} </td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            {% endfor %}
+
+        </tbody>
+
+    </table>
 </body>
 </html>

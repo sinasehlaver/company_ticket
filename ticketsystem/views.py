@@ -43,6 +43,16 @@ def create_event(request):
 		form = EventForm()
 
 	return render(request, 'event/create.html', {'form': form})
+'''
+def get_day(request, day_id):
+	event = get_object_or_404(Event, pk=event_id)
+	tickets = Ticket.objects.all().filter(event=event)
+	tickets_dict = {}
+	for ticket in tickets:
+		tickets_dict[ticket.date][ticket.row][ticket.num] = ticket.id
+
+	return render(request, 'event/detail.html', {'event': event, 'tickets_dict': tickets_dict})
+'''
 
 def create_day(request, event_id):
 
@@ -50,7 +60,11 @@ def create_day(request, event_id):
 		event = get_object_or_404(Event, pk=event_id)
 		priceSchema = str(request.POST['priceSchema']).strip("\r").strip("\n").strip(" ")
 		date_str = request.POST['date']
-		date = datetime.strptime(date_str,'%Y-%m-%dT%H:%M' )
+		day = Day(
+			date=datetime.strptime(date_str,'%Y-%m-%dT%H:%M' ),
+			event=event
+		)
+		day.save()
 		seats = event.hall.seats
 		categories = priceSchema.split(",")
 		print(categories)
@@ -73,13 +87,13 @@ def create_day(request, event_id):
 							ticket = Ticket(
 								row=row,
 								num=num,
-								date=date,
+								day=day,
 								event=event,
 								price=price,
 								category=cat
 							)
 							ticket.save()
 
-		return redirect('get_event', event.id)
+		return redirect('get_day', day.id)
 
 	return render(request, 'day/create.html')
