@@ -1,0 +1,21 @@
+{% load static %}
+
+<link rel="stylesheet" type="text/css" href="{% static 'event/style.css' %}">
+
+{% block content %}
+
+    <h1>Yeni gün oluştur</h1>
+
+    <form action="" method="post">
+        {% csrf_token %}
+        <label for="date">Tarih ve Saat: </label>
+        <input id="date" type="datetime-local" name="date" required>
+        <br><br>
+        <label for="priceSchema">Bilet ücreti şeması: </label>
+        <br><br>
+        <textarea id="priceSchema" rows = "5" cols = "60" name = "priceSchema" required></textarea>
+        <br><br>
+        <input type="submit" value="Oluştur">
+    </form>
+
+{% endblock %}

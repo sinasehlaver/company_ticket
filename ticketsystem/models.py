@@ -29,7 +29,7 @@ class Ticket(models.Model):
 	status = models.PositiveSmallIntegerField(default=0)
 	category = models.PositiveSmallIntegerField()
 	lastModifiedBy = models.CharField(max_length=200)
-	lastModified = models.DateTimeField()
+	lastModified = models.DateTimeField(auto_now=True)
 
 	def __str__(self):
 		return f'{self.row}-{self.num}-{self.date}'
