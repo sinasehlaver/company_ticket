@@ -19,12 +19,15 @@ class Event(models.Model):
 	def __str__(self):
 		return self.name
 
+
 class Day(models.Model):
 	date = models.DateTimeField()
 	event = models.ForeignKey(Event, on_delete=models.CASCADE)
+	tickets_dict = models.JSONField()
 
 	def __str__(self):
-		return self.date
+		return str(self.date)
+
 
 class Ticket(models.Model):
 	row = models.CharField(max_length=10)
@@ -38,5 +41,5 @@ class Ticket(models.Model):
 	lastModified = models.DateTimeField(auto_now=True)
 
 	def __str__(self):
-		return f'{self.row}-{self.num}-{self.day}'
+		return f'{self.row}-{self.num}-{self.day.date}'
 

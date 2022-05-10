@@ -5,3 +5,4 @@ from .models import *
 admin.site.register(Hall)
 admin.site.register(Event)
 admin.site.register(Ticket)
+admin.site.register(Day)
