@@ -3,6 +3,14 @@
 
 <link rel="stylesheet" type="text/css" href="{% static 'day/style.css' %}">
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gün - {{ day.date|date:'d-m-Y H:i' }}</title>
+</head>
+<body>
+
 <h1 align="center">{{ day.event }}</h1>
 <h1 align="center">{{ day.date|date:'d-m-Y H:i' }}</h1>
 
@@ -34,3 +42,5 @@
     </tbody>
 
 </table>
+</body>
+</html>

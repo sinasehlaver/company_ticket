@@ -1,3 +1,9 @@
+* {
+    text-align: center;
+    align-content: center;
+    align: center;
+}
+
 tr.seat {
     border-style: solid;
     height: 40px;
