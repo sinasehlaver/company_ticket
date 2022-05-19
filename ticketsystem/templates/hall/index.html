@@ -9,10 +9,15 @@
     <title>Sahneler</title>
 </head>
 <body>
+    <h1>Sahneler</h1>
+    {% block content %}
     <ul>
     {% for hall in halls %}
-        <li><a href="/hall/{{ hall.id }}/">{{ hall.name }}</a></li>
+        <li><a href="/hall/{{ hall.id }}/"><h2>{{ hall.name }}</h2></a></li>
     {% endfor %}
+        <br>
+        <h3>Sahne Ekle</h3>
     </ul>
+    {% endblock %}
 </body>
 </html>

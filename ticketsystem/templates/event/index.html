@@ -9,11 +9,15 @@
     <title>Etkinlikler</title>
 </head>
 <body>
+    <h1>Etkinlikler</h1>
+    {% block content %}
     <ul>
     {% for event in events %}
-        <li><a href="/event/{{ event.id }}/">{{ event.name }}</a></li>
+        <li><a href="/event/{{ event.id }}/"><h2>{{ event.name }}</h2></a></li>
     {% endfor %}
-        <li><a href="/event/add/">Ekle</a></li>
+        <br>
+        <a href="/event/add/"><h3>Etkinlik Ekle</h3></a>
     </ul>
+    {% endblock %}
 </body>
 </html>

@@ -1,13 +1,13 @@
+* {
+    align-content: center;
+    align: center;
+}
+
 tr.seat {
     border-style: solid;
     height: 40px;
     align-content: center;
     text-align: center;
-}
-
-ul,li {
-    align-content: center;
-    align: center;
 }
 
 td.seat {

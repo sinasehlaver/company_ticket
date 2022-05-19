@@ -41,5 +41,5 @@ class Ticket(models.Model):
 	lastModified = models.DateTimeField(auto_now=True)
 
 	def __str__(self):
-		return f'{self.row}-{self.num}-{self.day.date}'
+		return f'{self.row}-{self.num}-{self.day.date}-{self.status}-{self.lastModifiedBy}'
 

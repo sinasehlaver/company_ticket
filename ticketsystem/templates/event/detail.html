@@ -9,12 +9,13 @@
     <title>Etkinlik - {{ event.name }}</title>
 </head>
 <body>
-    <h1 align="center">{{ event.name }}</h1>
+    <h1>{{ event.name }}</h1>
     <ul>
     {% for day in days %}
-        <li><a href="/day/{{ day.id }}/">{{ day.date }}</a></li>
+        <li><a href="/day/{{ day.id }}/"><h2>{{ day.date|date:'d F H:i' }}</h2></a></li>
     {% endfor %}
-    <li><a href="add">Gün Ekle</a></li>
+        <br>
+        <a href="add"><h3>Gün Ekle</h3></a>
     </ul>
 </body>
 </html>

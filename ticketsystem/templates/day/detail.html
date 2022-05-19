@@ -7,13 +7,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Gün - {{ day.date|date:'d-m-Y H:i' }}</title>
+    <title>Gün - {{ day.date|date:'d-M H:i' }}</title>
 </head>
 <body>
 
 <h1 align="center">{{ day.event }}</h1>
-<h1 align="center">{{ day.date|date:'d-m-Y H:i' }}</h1>
 
+<div>
+<table align="center">
+    <tbody align="center">
+    <tr>
+        {% for d in days %}
+        <td class="day{% if d.id == day.id %}1{% else %}0{% endif %}" ><a href="/day/{{d.id}}/" align="center"><h1>{{ d.date|date:'d F H:i' }}</h1></a></td>
+        {% endfor %}
+    </tr>
+    </tbody>
+</table>
+</div>
+
+<br>
+
+<div align="center">
+    <button type="submit" onclick="location.href='sell/'">Satış Yap</button>
+</div>
+
+<br>
+
+<div>
 <table align="center">
     <tbody align="center">
 
@@ -29,7 +49,7 @@
                                 {% if num == "-1" %}
                                     <td class="walk"></td>
                                 {% else %}
-                                    <td class="seat{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:1}}"><a href="click/{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:0}}" >{{num}}</a></td>
+                                    <td class="seat{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:1}}{% if user_id == tickets_dict|keyvalue:row|keyvalue:num|keyvalue:2 %}1{% else %}0{% endif %}"><a href="click/{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:0}}" >{{num}}</a></td>
                                 {% endif %}
                             {% endfor %}
                             <td class="row"> {{ row }} </td>
@@ -42,5 +62,6 @@
     </tbody>
 
 </table>
+</div>
 </body>
 </html>

@@ -1,7 +1,10 @@
-* {
-    text-align: center;
+ul,li {
     align-content: center;
     align: center;
+}
+
+button {
+    font-size: 35px;
 }
 
 tr.seat {
@@ -11,15 +14,37 @@ tr.seat {
     text-align: center;
 }
 
-td.seat0, td.seat1 {
+td.seat00, td.seat10, td.seat01, td.seat11, td.seat20, td.seat21 {
     border-style: solid;
     width: 30px;
     align-content: center;
     text-align: center;
+    border-radius: 5px;
 }
 
-td.seat1 {
+td.day1, td.day0 {
+    align-content: center;
+    text-align: center;
+    vertical-align: center;
+    padding: 10px;
+}
+
+td.day1 {
+    background-color: lightblue;
+    border-style: solid;
+    border-radius: 5px;
+}
+
+td.seat10 {
+    background-color: grey;
+}
+
+td.seat11 {
     background-color: darkorange;
+}
+
+td.seat20, td.seat21 {
+    background-color: crimson;
 }
 
 tr.walk {
