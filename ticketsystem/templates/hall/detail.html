@@ -23,15 +23,17 @@
                             <tr class="walk"><td class="walk"><br></td></tr>
                         {% else %}
                             <tr class="seat">
-                                <td class="row"> {{ row }} </td>
+                                <td class="row"><p>{{ row }}</p></td>
+                                <td class="walk"></td>
                                 {% for num in nums %}
-                                    {% if num == -1 %}
+                                    {% if num == "-1" %}
                                         <td class="walk"></td>
                                     {% else %}
-                                        <td class="seat">{{ num }}</td>
+                                        <td class="seat"><p>{{num}}</p></td>
                                     {% endif %}
                                 {% endfor %}
-                                <td class="row"> {{ row }} </td>
+                                <td class="walk"></td>
+                                <td class="row"><p>{{ row }}</p></td>
                             </tr>
                         {% endif %}
                     {% endfor %}
