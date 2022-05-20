@@ -15,7 +15,7 @@
 
     <h1>Yeni gün oluştur</h1>
 
-    <form action="" method="post">
+    <form action="{%url 'create_day' event_id=event_id%}" method="post">
         {% csrf_token %}
         <label for="date">Tarih ve Saat: </label>
         <input id="date" type="datetime-local" name="date" required>

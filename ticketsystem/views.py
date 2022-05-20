@@ -165,7 +165,7 @@ def create_day(request, event_id):
 
 		return redirect('get_day', day.id)
 
-	return render(request, 'day/create.html')
+	return render(request, 'day/create.html', {'event_id': event_id})
 
 
 @login_required

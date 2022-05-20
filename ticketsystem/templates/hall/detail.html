@@ -10,6 +10,7 @@
     <title>Sahne - {{ hall.name }}</title>
 </head>
 <body>
+    {% block content %}
     <h1 align="center">{{ hall.name }}</h1>
 
     <table align="center">
@@ -40,6 +41,7 @@
         </tbody>
 
     </table>
+    {% endblock content %}
 
 </body>
 </html>
