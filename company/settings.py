@@ -27,7 +27,7 @@ if PROJECT_DIR[-1] != "/":
 SECRET_KEY = 'django-insecure-by4)lkvoxu8ydxol0$4v&@_v8l0ejgb)q4+llwr&h)hb+*@x&i'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ["*"] #'localhost', '127.0.0.1']
 
