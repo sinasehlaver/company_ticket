@@ -1,3 +1,4 @@
+{% extends 'base.html'%}
 {% load static %}
 
 <link rel="stylesheet" type="text/css" href="{% static 'home/style.css' %}">
@@ -13,11 +14,10 @@
     {% block content %}
     {% if user.is_authenticated %}
     <ul>
-        <li><a href="/admin/"><h2>Admin</h2></a></li>
-        <li><a href="/hall/"><h2>Sahneler</h2></a></li>
         <li><a href="/event/"><h2>Etkinlikler</h2></a></li>
+        <li><a href="/hall/"><h2>Sahneler</h2></a></li>
+        <li><a href="/admin/"><h2>Admin</h2></a></li>
         <br>
-        <a href="/logout/"><h3>Çıkış Yap</h3></a>
     </ul>
     {% else %}
         <h2>Giriş yapmanız lazım!</h2>

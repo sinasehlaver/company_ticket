@@ -1,3 +1,4 @@
+{% extends 'base.html'%}
 {% load static %}
 
 <link rel="stylesheet" type="text/css" href="{% static 'event/style.css' %}">
@@ -9,6 +10,7 @@
     <title>Etkinlik - {{ event.name }}</title>
 </head>
 <body>
+{% block content %}
     <h1>{{ event.name }}</h1>
     <ul>
     {% for day in days %}
@@ -17,5 +19,6 @@
         <br>
         <a href="add"><h3>Gün Ekle</h3></a>
     </ul>
+{% endblock content %}
 </body>
 </html>

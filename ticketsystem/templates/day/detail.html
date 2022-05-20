@@ -1,5 +1,8 @@
+{% extends 'base.html'%}
 {% load static %}
 {% load extras %}
+{% block content %}
+
 <link rel="stylesheet" type="text/css" href="{% static 'day/style.css' %}">
 
 <!DOCTYPE html>
@@ -7,14 +10,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Gün - {{ day.date|date:'d-M H:i' }}</title>
-
-
 </head>
 <body>
 
 
 <h1 align="center">{{ day.event }}</h1>
-
 <div>
 <table align="center">
     <tbody align="center">
@@ -57,15 +57,17 @@
                         <tr class="walk"><td class="walk"><br></td></tr>
                     {% else %}
                         <tr class="seat">
-                            <td class="row"> {{ row }} </td>
+                            <td class="row"><p>{{ row }}</p></td>
+                            <td class="walk"></td>
                             {% for num in nums %}
                                 {% if num == "-1" %}
                                     <td class="walk"></td>
                                 {% else %}
-                                    <td ><button class="seat{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:1}}{% if user_id == tickets_dict|keyvalue:row|keyvalue:num|keyvalue:2 %}1{% else %}0{% endif %}" onclick="location.href='click/{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:0}}'" >{{num}}</button></td>
+                                    <td ><button class="seat{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:1}}{% if user_id == tickets_dict|keyvalue:row|keyvalue:num|keyvalue:2 %}1{% else %}0{% endif %}" onclick="location.href='click/{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:0}}'" ><p>{{num}}</p></button></td>
                                 {% endif %}
                             {% endfor %}
-                            <td class="row"> {{ row }} </td>
+                            <td class="walk"></td>
+                            <td class="row"><p>{{ row }}</p></td>
                         </tr>
                     {% endif %}
                 {% endfor %}
@@ -76,5 +78,6 @@
 
 </table>
 </div>
+{% endblock content %}
 </body>
 </html>

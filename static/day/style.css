@@ -13,16 +13,13 @@ button.sell:hover {
     background-color: darkred;
 }
 
-tr.seat {
-    border-style: solid;
-    height: 30px;
-    align-content: center;
-    text-align: center;
-}
 
 button.seat00, button.seat10, button.seat01, button.seat11, button.seat20, button.seat21 {
     width: 30px;
     height: 30px;
+    font-size: 14px;
+    text-align: center;
+    align: center;
     border-radius: 5px;
 }
 
@@ -60,20 +57,37 @@ button.seat11:hover {
 }
 
 tr.walk {
-    height: 10px;
+    height: 30px;
+    width: 30px;
+    text-align: center;
+    align: center;
 }
 
 td.walk {
-    width: 10px;
+    height: 30px;
+    width: 30px;
+    text-align: center;
+    align: center;
+}
+
+td.seat00, td.seat10, td.seat01, td.seat11, td.seat20, td.seat21 {
+    width: 30px;
+    height: 30px;
+    text-align: center;
+    align: center;
 }
 
 td.row {
     border-style: solid;
-    width: 25px;
-    height: 15px;
-    align-content: center;
+    border-color: black;
+    width: 30px;
+    height: 30px;
     text-align: center;
     background: lightgrey;
     text-transform: uppercase;
+}
+
+tr.seat {
+    align-content: center;
 }
 
