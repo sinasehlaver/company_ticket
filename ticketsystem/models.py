@@ -41,5 +41,14 @@ class Ticket(models.Model):
 	lastModified = models.DateTimeField(auto_now=True)
 
 	def __str__(self):
-		return f'{self.row}-{self.num}-{self.day.date}-{self.status}-{self.lastModifiedBy}'
+		return f'{self.row}-{self.num}-{self.day.date.strftime("%d %B %H:%M")}-{self.event}-{self.status}-{self.lastModifiedBy}'
 
+
+class Log(models.Model):
+	ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE)
+	action = models.CharField(max_length=25)
+	user = models.CharField(max_length=200)
+	datetime = models.DateTimeField(auto_now_add=True)
+
+	def __str__(self):
+		return f'{self.ticket.event}-{self.ticket.day.date.strftime("%d %B %H:%M")} Seansı-{self.ticket.row}-{self.ticket.num}-{self.action}-{self.user}-{self.datetime.strftime("%d %B %H:%M")}'

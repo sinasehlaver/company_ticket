@@ -3,23 +3,31 @@ ul,li {
     align: center;
 }
 
-button {
+button.sell {
     font-size: 35px;
+    background-color: crimson;
+    border-radius: 5px;
+}
+
+button.sell:hover {
+    background-color: darkred;
 }
 
 tr.seat {
     border-style: solid;
-    height: 40px;
+    height: 30px;
     align-content: center;
     text-align: center;
 }
 
-td.seat00, td.seat10, td.seat01, td.seat11, td.seat20, td.seat21 {
-    border-style: solid;
+button.seat00, button.seat10, button.seat01, button.seat11, button.seat20, button.seat21 {
     width: 30px;
-    align-content: center;
-    text-align: center;
+    height: 30px;
     border-radius: 5px;
+}
+
+button.seat00:hover, button.seat01:hover, button.seat11:hover {
+    background-color: darkgray;
 }
 
 td.day1, td.day0 {
@@ -35,16 +43,20 @@ td.day1 {
     border-radius: 5px;
 }
 
-td.seat10 {
-    background-color: grey;
+button.seat10 {
+    background-color: gray;
 }
 
-td.seat11 {
+button.seat11 {
     background-color: darkorange;
 }
 
-td.seat20, td.seat21 {
+button.seat20, button.seat21 {
     background-color: crimson;
+}
+
+button.seat11:hover {
+    background-color: orangered;
 }
 
 tr.walk {
@@ -57,8 +69,8 @@ td.walk {
 
 td.row {
     border-style: solid;
-    width: 30px;
-    height: 30px;
+    width: 25px;
+    height: 15px;
     align-content: center;
     text-align: center;
     background: lightgrey;

@@ -1,6 +1,5 @@
 {% load static %}
 {% load extras %}
-
 <link rel="stylesheet" type="text/css" href="{% static 'day/style.css' %}">
 
 <!DOCTYPE html>
@@ -8,8 +7,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Gün - {{ day.date|date:'d-M H:i' }}</title>
+
+
 </head>
 <body>
+
 
 <h1 align="center">{{ day.event }}</h1>
 
@@ -28,7 +30,18 @@
 <br>
 
 <div align="center">
-    <button type="submit" onclick="location.href='sell/'">Satış Yap</button>
+    <button class="sell" type="submit" onclick="location.href='sell/'">Satış Yap</button>
+</div>
+
+<br>
+
+<div align="center">
+    <form action="cancel/" method="post">
+        {% csrf_token %}
+        <label for="tickets">İptal Edilecek Biletler (a-32, b-25...): </label>
+        <textarea id="tickets" rows = "1" cols = "20" name = "tickets" required></textarea>
+        <input type="submit" value="İptal Et">
+    </form>
 </div>
 
 <br>
@@ -49,7 +62,7 @@
                                 {% if num == "-1" %}
                                     <td class="walk"></td>
                                 {% else %}
-                                    <td class="seat{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:1}}{% if user_id == tickets_dict|keyvalue:row|keyvalue:num|keyvalue:2 %}1{% else %}0{% endif %}"><a href="click/{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:0}}" >{{num}}</a></td>
+                                    <td ><button class="seat{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:1}}{% if user_id == tickets_dict|keyvalue:row|keyvalue:num|keyvalue:2 %}1{% else %}0{% endif %}" onclick="location.href='click/{{tickets_dict|keyvalue:row|keyvalue:num|keyvalue:0}}'" >{{num}}</button></td>
                                 {% endif %}
                             {% endfor %}
                             <td class="row"> {{ row }} </td>

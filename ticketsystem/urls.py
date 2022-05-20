@@ -14,6 +14,7 @@ urlpatterns = [
     path('event/<int:event_id>/add', views.create_day, name='create_day'),
     path('day/<int:day_id>/', views.get_day, name='get_day'),
     path('day/<int:day_id>/sell/', views.sell, name='sell'),
+    path('day/<int:day_id>/cancel/', views.cancel, name='cancel'),
     path('day/<int:day_id>/click/<int:ticket_id>/', views.reserve_toggle, name='reserve_toggle')
 
 ]
