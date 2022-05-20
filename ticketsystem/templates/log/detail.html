@@ -1,0 +1,59 @@
+{% extends 'base.html'%}
+{% load static %}
+{% block content %}
+
+<link rel="stylesheet" type="text/css" href="{% static 'log/style.css' %}">
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Company Bilet Satış Sistemi</title>
+</head>
+<body>
+
+<div>
+<table class="day" align="left">
+    <tbody align="center">
+    <tr class="days">
+        {% for d in days %}
+        <td class="day{% if d.id == day.id %}1{% else %}0{% endif %}" ><a href="/log/{{d.id}}/" align="center"><h4>{{ d.date|date:'d F H:i' }}</h4></a></td>
+        {% endfor %}
+    </tr>
+    </tbody>
+</table>
+</div>
+<br>
+<br>
+<br>
+<div style="padding-left: 10px; align: left;">
+    <form action="{%url 'lookup_log' day_id=day.id%}" method="post">
+        {% csrf_token %}
+        <label for="ticket">Bakılacak Biletler (a-32...): </label>
+        <textarea id="ticket" rows = "1" cols = "20" name = "ticket" required></textarea>
+        <input type="submit" value="Bak">
+    </form>
+</div>
+<br>
+<div>
+    {% if message %}<p>{{message}}</p>{% endif %}
+</div>
+<br>
+<div align="left">
+<table align="left">
+    <tbody class="log" align="left">
+    {% for log in logs %}
+    <tr>
+        <td class="log">{{log.ticket.event}} - {{log.day.date|date:'d F H:i'}}</td>
+        <td class="log">{{log.ticket.row}}-{{log.ticket.num}}</td>
+        <td class="log">{{log.action}}</td>
+        <td class="log">{{log.user}}</td>
+        <td class="log">{{log.datetime|date:'d-M H:i'}}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock content %}
+</body>
+</html>

@@ -1,10 +1,6 @@
-import json
 from datetime import datetime
-import copy
-
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 
 # Create your views here.
@@ -21,6 +17,7 @@ def index(request):
 
 def view_404(request, exception=None):
 	return redirect('/')
+
 
 @login_required
 def logout_view(request):
@@ -44,6 +41,40 @@ def get_hall(request, hall_id):
 def event_index(request):
 	events = Event.objects.all()
 	return render(request, 'event/index.html', {'events': events})
+
+
+@login_required
+def log_index(request):
+	days = Day.objects.all().order_by('-date')
+	return render(request, 'log/index.html', {'days': days})
+
+
+@login_required
+def get_log(request, day_id):
+	day = get_object_or_404(Day, pk=day_id)
+	logs = Log.objects.all().filter(day=day)
+	days = Day.objects.all().filter(event=day.event).order_by('date')
+
+	return render(request, 'log/detail.html', {'day': day, 'days': days, 'logs': logs})
+
+
+@login_required
+def lookup_log(request, day_id):
+	if request.method == 'POST':
+		day = get_object_or_404(Day, pk=day_id)
+		days = Day.objects.all().filter(event=day.event).order_by('date')
+		ticket_str = str(request.POST['ticket']).strip("\r").strip("\n").strip()
+		if len(ticket_str.split('-')) == 2:
+			print('here')
+			row = ticket_str.split('-')[0]
+			num = ticket_str.split('-')[1]
+			tickets = Ticket.objects.all().filter( day=day, row=row, num=num, event=day.event )
+			if len(tickets) > 0:
+				logs = Log.objects.all().filter(day=day, ticket=tickets[0]).order_by('-datetime')
+				print(logs)
+				return render(request, 'log/detail.html', {'day': day, 'days': days, 'logs': logs})
+
+	return redirect('get_log', day_id)
 
 
 @login_required
@@ -80,7 +111,7 @@ def get_day(request, day_id):
 	# print(day.tickets_dict['z']['10'])
 
 	return render(request, 'day/detail.html',
-				  {'day': day, 'days': days, 'tickets_dict': day.tickets_dict, 'user_id': str(request.user.id)})
+				{'day': day, 'days': days, 'tickets_dict': day.tickets_dict, 'user_id': str(request.user.id)})
 
 
 @login_required
@@ -139,6 +170,7 @@ def create_day(request, event_id):
 
 @login_required
 def reserve_toggle(request, day_id, ticket_id):
+	day = get_object_or_404(Day, pk=day_id)
 	ticket = get_object_or_404(Ticket, pk=ticket_id)
 	if ticket.status == 0:
 		ticket.status = 1
@@ -146,6 +178,7 @@ def reserve_toggle(request, day_id, ticket_id):
 		log = Log(
 			ticket=ticket,
 			action="rezerve",
+			day=day,
 			user=str(request.user.username)
 		)
 		log.save()
@@ -155,6 +188,7 @@ def reserve_toggle(request, day_id, ticket_id):
 		log = Log(
 			ticket=ticket,
 			action="rezerve iptal",
+			day=day,
 			user=str(request.user.username)
 		)
 		log.save()
@@ -175,6 +209,7 @@ def sell(request, day_id):
 		log = Log(
 			ticket=ticket,
 			action="satış",
+			day=day,
 			user=str(request.user.username)
 		)
 		log.save()
@@ -202,6 +237,7 @@ def cancel(request, day_id):
 				log = Log(
 					ticket=tickets[0],
 					action="satış iptal",
+					day=day,
 					user=str(request.user.username)
 				)
 				log.save()

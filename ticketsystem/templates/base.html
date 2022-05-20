@@ -7,12 +7,12 @@
             <a class="nav-item nav-link {% if request.path == '/' %}active{% endif %}" href="/">Anasayfa</a>
             <a class="nav-item nav-link {% if request.path == '/event/' %}active{% endif %}" href="/event/">Etkinlikler</a>
             <a class="nav-item nav-link {% if request.path == '/hall/' %}active{% endif %}" href="/hall/">Sahneler</a>
+            <a class="nav-item nav-link {% if request.path == '/log/' %}active{% endif %}" href="/log/">Loglar</a>
             {% if user.is_superuser %}<a class="nav-item nav-link" href="/admin/">Admin</a>{% endif %}
             {% if user.is_authenticated %}<a class="nav-item nav-link active" href="/logout/">Çıkış Yap</a>{% endif %}
         </div>
     </div>
 </nav>
-<br>
 {% block content %}
 {% endblock content %}
 <br>

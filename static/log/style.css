@@ -1,3 +1,16 @@
+td.log {
+    border: 1px solid;
+    height: 30px;
+    text-align: center;
+    padding: 20px 30px;
+}
+
+tbody.log {
+    width:18%;
+    overflow: hidden;
+    overflow-y: scroll;
+}
+
 button.sell {
     font-size: 25px;
     background-color: crimson;
@@ -29,6 +42,10 @@ td.day0 {
 
 td.day1 {
     background-color: lightblue;
+}
+
+tr.days{
+    height: 20px;
 }
 
 button.seat10 {

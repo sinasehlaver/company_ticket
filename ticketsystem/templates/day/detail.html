@@ -12,30 +12,29 @@
     <title>Gün - {{ day.date|date:'d-M H:i' }}</title>
 </head>
 <body>
+<div align="left">
+    <a href="/event/{{day.event.id}}"><h3 style="padding: 1 10px;">{{ day.event }}</h3></a>
+</div>
 
-
-<h1 align="center">{{ day.event }}</h1>
 <div>
-<table align="center">
+<table class="day" align="left">
     <tbody align="center">
-    <tr>
+    <tr class="days">
         {% for d in days %}
-        <td class="day{% if d.id == day.id %}1{% else %}0{% endif %}" ><a href="/day/{{d.id}}/" align="center"><h1>{{ d.date|date:'d F H:i' }}</h1></a></td>
+        <td class="day{% if d.id == day.id %}1{% else %}0{% endif %}" ><a href="/day/{{d.id}}/" align="center"><h4>{{ d.date|date:'d F H:i' }}</h4></a></td>
         {% endfor %}
+        <td class="day0"><a href="/event/{{day.event.id}}/add"><h4>+</h4></a></td>
     </tr>
     </tbody>
 </table>
 </div>
-
 <br>
-
-<div align="center">
+<div align="left">
     <button class="sell" type="submit" onclick="location.href='sell/'">Satış Yap</button>
 </div>
 
-<br>
 
-<div align="center">
+<div style="float: right;">
     <form action="cancel/" method="post">
         {% csrf_token %}
         <label for="tickets">İptal Edilecek Biletler (a-32, b-25...): </label>
@@ -43,6 +42,7 @@
         <input type="submit" value="İptal Et">
     </form>
 </div>
+
 
 <br>
 

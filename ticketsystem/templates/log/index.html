@@ -1,0 +1,22 @@
+{% extends 'base.html'%}
+{% load static %}
+
+<link rel="stylesheet" type="text/css" href="{% static 'log/style.css' %}">
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Loglar</title>
+</head>
+<body>
+    <h1>Loglar</h1>
+    {% block content %}
+    <ul>
+    {% for day in days %}
+        <li><a href="/log/{{ day.id }}/"><h2>{{ day.event}} - {{ day.date|date:'d F H:i' }}</h2></a></li>
+    {% endfor %}
+    </ul>
+    {% endblock %}
+</body>
+</html>

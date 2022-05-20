@@ -10,13 +10,16 @@
     <title>Company Bilet Satış Sistemi</title>
 </head>
 <body>
-    <h1>Company Bilet Satış Sistemi</h1>
     {% block content %}
+    <h1>Company Bilet Satış Sistemi</h1>
     {% if user.is_authenticated %}
     <ul>
         <li><a href="/event/"><h2>Etkinlikler</h2></a></li>
         <li><a href="/hall/"><h2>Sahneler</h2></a></li>
+        <li><a href="/log/"><h2>Loglar</h2></a></li>
+        {% if user.is_superuser %}
         <li><a href="/admin/"><h2>Admin</h2></a></li>
+        {% endif %}
         <br>
     </ul>
     {% else %}
