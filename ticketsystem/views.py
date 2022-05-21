@@ -145,20 +145,21 @@ def create_day(request, event_id):
 			for row in row_dict:
 				if row != "-":
 					tickets_dict[row] = {}
-					price = prices[ord(row)][0]
-					cat = prices[ord(row)][1]
-					for num in row_dict[row]:
-						if num != "-1":
-							ticket = Ticket(
-								row=row,
-								num=num,
-								day=day,
-								event=event,
-								price=price,
-								category=cat
-							)
-							ticket.save()
-							tickets_dict[row][num] = (ticket.id, ticket.status, ticket.lastModifiedBy)
+					if prices.get(ord(row)):
+						price = prices[ord(row)][0]
+						cat = prices[ord(row)][1]
+						for num in row_dict[row]:
+							if num != "-1":
+								ticket = Ticket(
+									row=row,
+									num=num,
+									day=day,
+									event=event,
+									price=price,
+									category=cat
+								)
+								ticket.save()
+								tickets_dict[row][num] = (ticket.id, ticket.status, ticket.lastModifiedBy)
 
 		day.tickets_dict = tickets_dict
 		day.save()
