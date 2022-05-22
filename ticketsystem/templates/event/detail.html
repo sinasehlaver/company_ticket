@@ -17,7 +17,7 @@
         <li><a href="/day/{{ day.id }}/"><h2>{{ day.date|date:'d F H:i' }}</h2></a></li>
     {% endfor %}
         <br>
-        <a href="add"><h3>Gün Ekle</h3></a>
+        {% if user.is_superuser %}<a href="add"><h3>Gün Ekle</h3></a>{% endif %}
     </ul>
 {% endblock content %}
 </body>

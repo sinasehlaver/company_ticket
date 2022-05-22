@@ -2,6 +2,7 @@ from datetime import datetime
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import user_passes_test
 
 # Create your views here.
 from .forms import EventForm
@@ -85,6 +86,7 @@ def get_event(request, event_id):
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def create_event(request):
 	if request.method == 'POST':
 		form = EventForm(request.POST)
@@ -105,35 +107,42 @@ def get_day(request, day_id):
 
 	tickets = Ticket.objects.all().filter(event=day.event, day=day)
 
+	reserved_tickets = Ticket.objects.all().filter(event=day.event, day=day, status=1, lastModifiedBy=str(request.user.id))
+
+	temp_total = 0
+	for ticket in reserved_tickets:
+		temp_total += ticket.price
+
 	for ticket in tickets:
 		day.tickets_dict[ticket.row][ticket.num] = (ticket.id, ticket.status, ticket.lastModifiedBy)
 
 	# print(day.tickets_dict['z']['10'])
 
 	return render(request, 'day/detail.html',
-				{'day': day, 'days': days, 'tickets_dict': day.tickets_dict, 'user_id': str(request.user.id)})
+				{'day': day, 'days': days, 'tickets_dict': day.tickets_dict, 'user_id': str(request.user.id), 'reserved_tickets':reserved_tickets, 'temp_total': temp_total})
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def create_day(request, event_id):
 	if request.method == "POST":
 		event = get_object_or_404(Event, pk=event_id)
-		priceSchema = str(request.POST['priceSchema']).strip("\r").strip("\n").strip(" ")
+		priceSchema = str(request.POST['priceSchema']).strip("\r").strip("\n").strip(" ").strip()
 		date_str = request.POST['date']
-
 		seats = event.hall.seats
 		categories = priceSchema.split(",")
 		prices = {}
-		for i, cat in enumerate(categories):
-			if len(cat.split(':')) == 2:
-				cat_range = cat.split(':')[0]
+		i = 0
+		for cat in categories:
+			if len(cat.strip().split(':')) == 2:
+				cat_range = cat.strip().split(':')[0]
 				if len(cat_range.split('-')) == 2:
 					cat_range_s = cat_range.split('-')[0].lower()
 					cat_range_e = cat_range.split('-')[1].lower()
 					cat_price = int(cat.split(':')[1])
+					i += 1
 					for char_int in range(ord(cat_range_s), ord(cat_range_e) + 1):
 						prices[char_int] = (cat_price, i)
-
 		day = Day(
 			date=datetime.strptime(date_str, '%Y-%m-%dT%H:%M'),
 			event=event,
@@ -148,6 +157,7 @@ def create_day(request, event_id):
 					if prices.get(ord(row)):
 						price = prices[ord(row)][0]
 						cat = prices[ord(row)][1]
+						tickets_dict[row]['-1'] = (price, int(210*((i-cat-1)/(i-1))) + 150 )
 						for num in row_dict[row]:
 							if num != "-1":
 								ticket = Ticket(

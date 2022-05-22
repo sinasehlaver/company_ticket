@@ -10,6 +10,21 @@
 <head>
     <meta charset="UTF-8">
     <title>Gün - {{ day.date|date:'d-M H:i' }}</title>
+    <script>
+        function sell_clicked(e)
+        {
+            if(confirm('Bu biletleri alıyorsunuz: \n'+e.toString())) {
+                location.href='sell/';
+            }
+        }
+
+        function cancel_clicked()
+        {
+            var e = document.getElementById('tickets').value;
+            return confirm('Bu biletleri iptal ediyorsunuz: \n'+e.toString());
+        }
+
+    </script>
 </head>
 <body>
 <div align="left">
@@ -23,19 +38,18 @@
         {% for d in days %}
         <td class="day{% if d.id == day.id %}1{% else %}0{% endif %}" ><a href="/day/{{d.id}}/" align="center"><h4>{{ d.date|date:'d F H:i' }}</h4></a></td>
         {% endfor %}
-        <td class="day0"><a href="/event/{{day.event.id}}/add"><h4>+</h4></a></td>
     </tr>
     </tbody>
 </table>
 </div>
 <br>
 <div align="left">
-    <button class="sell" type="submit" onclick="location.href='sell/'">Satış Yap</button>
+    <button class="sell" type="submit" onclick="return sell_clicked('{% for ticket in reserved_tickets %} {{ticket.row}}-{{ticket.num}} : {{ticket.price}} \n{% endfor %} Total: {{temp_total}}');">Satış Yap</button>
 </div>
 
 
 <div style="float: right;">
-    <form action="cancel/" method="post">
+    <form action="cancel/" onsubmit="return cancel_clicked()" method="post">
         {% csrf_token %}
         <label for="tickets">İptal Edilecek Biletler (a-32, b-25...): </label>
         <textarea id="tickets" rows = "1" cols = "20" name = "tickets" required></textarea>
@@ -46,9 +60,9 @@
 
 <br>
 
-<div>
-<table align="center">
-    <tbody align="center">
+<div align="center">
+<table>
+    <tbody>
 
         {% for _, row_list in day.event.hall.seats.items %}
             {% for row_dict in row_list %}
@@ -56,7 +70,8 @@
                     {% if row == "-" %}
                         <tr class="walk"><td class="walk"><br></td></tr>
                     {% else %}
-                        <tr class="seat">
+                        <tr class="seat" style="background-color: hsl( {{ tickets_dict|keyvalue:row|keyvalue:'-1'|keyvalue:1 }} ,40%,60%);">
+                            <td >{{tickets_dict|keyvalue:row|keyvalue:'-1'|keyvalue:0}}</td>
                             <td class="row"><p>{{ row }}</p></td>
                             <td class="walk"></td>
                             {% for num in nums %}
@@ -75,9 +90,14 @@
         {% endfor %}
 
     </tbody>
-
 </table>
+    <br>
+    <h2>SAHNE</h2>
+
 </div>
+
+
+
 {% endblock content %}
 </body>
 </html>
