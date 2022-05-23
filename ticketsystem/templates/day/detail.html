@@ -43,10 +43,11 @@
 </table>
 </div>
 <br>
+<br>
+<br>
 <div align="left">
     <button class="sell" type="submit" onclick="return sell_clicked('{% for ticket in reserved_tickets %} {{ticket.row}}-{{ticket.num}} : {{ticket.price}} \n{% endfor %} Total: {{temp_total}}');">Satış Yap</button>
 </div>
-
 
 <div style="float: right;">
     <form action="cancel/" onsubmit="return cancel_clicked()" method="post">
@@ -57,7 +58,8 @@
     </form>
 </div>
 
-
+<br>
+<br>
 <br>
 
 <div align="center">

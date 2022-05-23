@@ -53,7 +53,7 @@ def log_index(request):
 @login_required
 def get_log(request, day_id):
 	day = get_object_or_404(Day, pk=day_id)
-	logs = Log.objects.all().filter(day=day)
+	logs = Log.objects.all().filter(day=day).order_by('-datetime')
 	days = Day.objects.all().filter(event=day.event).order_by('date')
 
 	return render(request, 'log/detail.html', {'day': day, 'days': days, 'logs': logs})
