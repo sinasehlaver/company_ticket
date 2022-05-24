@@ -47,6 +47,11 @@
 <br>
 <div align="left">
     <button class="sell" type="submit" onclick="return sell_clicked('{% for ticket in reserved_tickets %} {{ticket.row}}-{{ticket.num}} : {{ticket.price}} \n{% endfor %} Total: {{temp_total}}');">Satış Yap</button>
+    {% if user.is_superuser %}
+    <br>
+    <p>Satılan bilet sayısı: {{sold_ticket_count}}</p>
+    <p>Satılan bilet ücreti: {{sold_ticket_revenue}}</p>
+    {% endif %}
 </div>
 
 <div style="float: right;">

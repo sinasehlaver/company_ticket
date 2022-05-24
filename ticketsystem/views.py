@@ -1,6 +1,7 @@
 from datetime import datetime
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
+from django.db.models import Sum
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import user_passes_test
 
@@ -109,6 +110,14 @@ def get_day(request, day_id):
 
 	reserved_tickets = Ticket.objects.all().filter(event=day.event, day=day, status=1, lastModifiedBy=str(request.user.id))
 
+	sold_ticket_count = None
+	sold_ticket_revenue = None
+
+	if request.user.is_superuser:
+		sold_tickets = Ticket.objects.all().filter(event=day.event, day=day, status=2)
+		sold_ticket_count = sold_tickets.count()
+		sold_ticket_revenue = sold_tickets.aggregate(Sum('price'))['price__sum']
+
 	temp_total = 0
 	for ticket in reserved_tickets:
 		temp_total += ticket.price
@@ -119,7 +128,14 @@ def get_day(request, day_id):
 	# print(day.tickets_dict['z']['10'])
 
 	return render(request, 'day/detail.html',
-				{'day': day, 'days': days, 'tickets_dict': day.tickets_dict, 'user_id': str(request.user.id), 'reserved_tickets':reserved_tickets, 'temp_total': temp_total})
+				{'day': day,
+				'days': days,
+				'tickets_dict': day.tickets_dict,
+				'user_id': str(request.user.id),
+				'reserved_tickets':reserved_tickets,
+				'temp_total': temp_total,
+				'sold_ticket_count': sold_ticket_count,
+				'sold_ticket_revenue': sold_ticket_revenue})
 
 
 @login_required
