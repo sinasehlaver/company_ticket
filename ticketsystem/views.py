@@ -202,23 +202,9 @@ def reserve_toggle(request, day_id, ticket_id):
 	if ticket.status == 0:
 		ticket.status = 1
 		ticket.lastModifiedBy = str(request.user.id)
-		log = Log(
-			ticket=ticket,
-			action="rezerve",
-			day=day,
-			user=str(request.user.username)
-		)
-		log.save()
 	elif ticket.status == 1 and ticket.lastModifiedBy == str(request.user.id):
 		print('here')
 		ticket.status = 0
-		log = Log(
-			ticket=ticket,
-			action="rezerve iptal",
-			day=day,
-			user=str(request.user.username)
-		)
-		log.save()
 
 	if ticket.status != 2:
 		ticket.save()
