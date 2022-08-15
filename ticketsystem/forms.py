@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Event
+from .models import Event, Hall
 
 
 class EventForm(forms.ModelForm):
@@ -8,6 +8,10 @@ class EventForm(forms.ModelForm):
         model = Event
         fields = '__all__'
 
+class HallForm(forms.ModelForm):
+    class Meta:
+        model = Hall
+        fields = '__all__'
 
 class DateForm(forms.Form):
     date = forms.DateTimeField(

@@ -17,7 +17,7 @@
         <li><a href="/hall/{{ hall.id }}/"><h2>{{ hall.name }}</h2></a></li>
     {% endfor %}
         <br>
-        {% if user.is_superuser %}<h3>Sahne Ekle</h3>{% endif %}
+        {% if user.is_superuser %}<a href="/hall/add/"><h2>Sahne Ekle</h2></a>{% endif %}
     </ul>
     {% endblock %}
 </body>

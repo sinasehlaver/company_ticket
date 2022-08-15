@@ -16,28 +16,32 @@
     <table align="center">
         <tbody align="center">
 
-            {% for _, row_list in hall.seats.items %}
-                {% for row_dict in row_list %}
-                    {% for row, nums in row_dict.items %}
-                        {% if row == "-" %}
-                            <tr class="walk"><td class="walk"><br></td></tr>
-                        {% else %}
-                            <tr class="seat">
-                                <td class="row"><p>{{ row }}</p></td>
-                                <td class="walk"></td>
-                                {% for num in nums %}
-                                    {% if num == "-1" %}
-                                        <td class="walk"></td>
-                                    {% else %}
-                                        <td class="seat"><p>{{num}}</p></td>
-                                    {% endif %}
-                                {% endfor %}
-                                <td class="walk"></td>
-                                <td class="row"><p>{{ row }}</p></td>
-                            </tr>
-                        {% endif %}
+            {% for key, row_list in hall.seats.items %}
+                {% if key != "count" %}
+                    {% for row_dict in row_list %}
+                        {% for row, nums in row_dict.items %}
+                            {% if row == "-" %}
+                                <tr class="walk"><td class="walk"><br></td></tr>
+                            {% else %}
+                                <tr class="seat">
+                                    <td class="row"><p>{{ row }}</p></td>
+                                    <td class="walk"></td>
+                                    {% for num in nums %}
+                                        {% if num == "-1" %}
+                                            <td class="walk"></td>
+                                        {% else %}
+                                            <td class="seat"><p>{{num}}</p></td>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <td class="walk"></td>
+                                    <td class="row"><p>{{ row }}</p></td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
                     {% endfor %}
-                {% endfor %}
+                {% else %}
+                    <tr><td>{{row_list}}</td></tr>
+                {% endif %}
             {% endfor %}
 
         </tbody>

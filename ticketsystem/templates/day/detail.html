@@ -45,6 +45,28 @@
 <br>
 <br>
 <br>
+{% if no_schema %}
+<div align="center">
+    <h3>{{tickets_count}}</h3>
+</div>
+<div align="center">
+        <button class="seat00" type="submit" onclick="location.href='reserve'">+</button>
+    <h3>{{ reserved_tickets_count }}</h3>
+        <button class="seat00" type="submit" onclick="location.href='dereserve'">-</button>
+
+</div>
+<div align="center">
+    <button class="sell" type="submit" onclick="return sell_clicked('{% for ticket in reserved_tickets %} {{ticket.row}}-{{ticket.num}} : {{ticket.price}} \n{% endfor %} Total: {{temp_total}}');">Satış Yap</button>
+</div>
+<div style="float: right;">
+    <form action="cancel_count/" onsubmit="return cancel_clicked()" method="post">
+        {% csrf_token %}
+        <label for="tickets">İptal Edilecek Bilet Sayısı: </label>
+        <textarea id="tickets" rows = "1" cols = "20" name = "tickets" required></textarea>
+        <input type="submit" value="İptal Et">
+    </form>
+</div>
+{% else %}
 <div align="left">
     <button class="sell" type="submit" onclick="return sell_clicked('{% for ticket in reserved_tickets %} {{ticket.row}}-{{ticket.num}} : {{ticket.price}} \n{% endfor %} Total: {{temp_total}}');">Satış Yap</button>
     {% if user.is_superuser %}
@@ -70,8 +92,7 @@
 <div align="center">
 <table>
     <tbody>
-
-        {% for _, row_list in day.event.hall.seats.items %}
+        {% for key, row_list in day.event.hall.seats.items %}
             {% for row_dict in row_list %}
                 {% for row, nums in row_dict.items %}
                     {% if row == "-" %}
@@ -100,9 +121,8 @@
 </table>
     <br>
     <h2>SAHNE</h2>
-
 </div>
-
+{% endif %}
 
 
 {% endblock content %}
