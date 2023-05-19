@@ -13,7 +13,7 @@
     <script>
         function sell_clicked(e)
         {
-            if(confirm('Bu biletleri alıyorsunuz: \n'+e.toString())) {
+            if(confirm('Bu biletleri alıyorsunuz: \n'+e.toString().toUpperCase())) {
                 location.href='sell/';
             }
         }
@@ -21,7 +21,7 @@
         function cancel_clicked()
         {
             var e = document.getElementById('tickets').value;
-            return confirm('Bu biletleri iptal ediyorsunuz: \n'+e.toString());
+            return confirm('Bu biletleri iptal ediyorsunuz: \n'+e.toString().toUpperCase());
         }
 
     </script>
