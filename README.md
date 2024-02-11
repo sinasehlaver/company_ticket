@@ -12,6 +12,14 @@ heroku run python manage.py migrate
 heroku run python manage.py createsuperuser
 ```
 
+## KKM hall creation:
+
+Price scheme:
+
+```
+a-f:75,g-k:60,l-z:50
+```
+
 ## Mimarlık hall creation:
 
 If for example the full capacity is 280 tickets.
