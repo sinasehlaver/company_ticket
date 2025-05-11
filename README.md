@@ -7,11 +7,8 @@ This repository is created for the ticket sales system for the ODTÜ "Company" M
 First attach a Heroku Postgres to the application on heroku. Then log in to the heroku cli on your terminal. 
 
 ```
-export HEROKU_APP="company-ticket"
 heroku run python manage.py migrate
-export DJANGO_SUPERUSER_EMAIL=sinasehlaver@gmail.com
-export DJANGO_SUPERUSER_PASSWORD=supersina
-heroku run python manage.py createsuperuser --no-input
+heroku run python manage.py createsuperuser --noinput --username sina --email sinasehlaver@gmail.com
 ```
 
 ## KKM hall creation:
