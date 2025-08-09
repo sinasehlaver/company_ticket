@@ -9,6 +9,8 @@ First attach a Heroku Postgres to the application on heroku. Then log in to the 
 ```
 heroku run python manage.py migrate
 heroku run python manage.py createsuperuser --noinput --username sina --email sinasehlaver@gmail.com
+python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); u = User.objects.get(username='sina'); u.set_password('YourStrongPassword123'); u.save()"
+
 ```
 
 ## KKM hall creation:
