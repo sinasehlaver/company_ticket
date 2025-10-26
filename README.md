@@ -7,9 +7,7 @@ This repository is created for the ticket sales system for the ODTÜ "Company" M
 First attach a Heroku Postgres to the application on heroku. Then log in to the heroku cli on your terminal. 
 
 ```
-heroku run python manage.py migrate
-heroku run python manage.py createsuperuser --noinput --username sina --email sinasehlaver@gmail.com
-python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); u = User.objects.get(username='sina'); u.set_password('YourStrongPassword123'); u.save()"
+python manage.py migrate; python manage.py createsuperuser --noinput --username sina --email sinasehlaver@gmail.com; python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); u = User.objects.get(username='sina'); u.set_password('pass'); u.save()"; python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); u = User.objects.get(username='sina'); u.set_password('pass'); u.save()"; python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); u = User.objects.create_user(username='kutuphane', password='pass'); u.save()"; python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); u = User.objects.create_user(username='carsi', password='pass'); u.save()"; python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); u = User.objects.create_user(username='hazirlik', password='pass'); u.save()"; python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); u = User.objects.create_user(username='baskan', password='pass'); u.is_staff = True; u.save()";
 
 ```
 
