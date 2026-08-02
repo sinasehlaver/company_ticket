@@ -32,3 +32,9 @@ SeatPlan:
 ```
 {"all": [{"count": 280}]}
 ```
+
+Price scheme:
+
+```
+60
+```
