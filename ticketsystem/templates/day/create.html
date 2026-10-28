@@ -1,32 +1,22 @@
 {% extends 'base.html'%}
 {% load static %}
 
-<link rel="stylesheet" type="text/css" href="{% static 'day/style.css' %}">
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Gün Oluştur</title>
-</head>
-<body>
-
 {% block content %}
-
+    <div style="padding-left: 10px;">
     <h1>Yeni gün oluştur</h1>
+    <p>Fiyatlar sahneden ({{ hall.name }}) hazır geliyor; değiştirmediyseniz sadece tarihi seçin.</p>
+    {% if error %}<p style="color:#b00"><b>{{ error }}</b></p>{% endif %}
 
-    <form action="{%url 'create_day' event_id=event_id%}" method="post">
+    <form action="{% url 'create_day' event_id=event_id %}" method="post">
         {% csrf_token %}
         <label for="date">Tarih ve Saat: </label>
         <input id="date" type="datetime-local" name="date" required>
         <br><br>
-        <label for="priceSchema">Bilet ücreti şeması: (a-g:50, h-z:40)</label>
-        <br><br>
-        <textarea id="priceSchema" rows = "5" cols = "60" name = "priceSchema" required></textarea>
+        {% include 'partials/price_editor.html' %}
+        <br>
+        <label><input type="checkbox" name="remember" value="1" checked> Bu fiyatları sahne için kaydet (sonraki günlerde hazır gelsin)</label>
         <br><br>
         <input type="submit" value="Oluştur">
     </form>
-
+    </div>
 {% endblock %}
-</body>
-</html>

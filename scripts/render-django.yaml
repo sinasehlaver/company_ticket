@@ -1,0 +1,26 @@
+# The Django app's Render Blueprint, kept for reference (the live render.yaml now deploys the Node app in web/).
+# To deploy Django again, copy this over ../render.yaml. Env: SECRET_KEY, DATABASE_URL/DATABASE_AUTH_TOKEN (libsql://), ADMIN_PASSWORD, TICKET_USER_PASSWORD.
+services:
+  - type: web
+    name: company-ticket
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: python manage.py migrate --noinput && python manage.py bootstrap && gunicorn company.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_AUTH_TOKEN
+        sync: false
+      - key: ADMIN_USERNAME
+        value: sina
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: TICKET_USER_PASSWORD
+        sync: false

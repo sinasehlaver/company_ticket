@@ -1,0 +1,48 @@
+# Merge restore (newer-wins, same rules as the in-app import; see web/docs/DEV_NOTES.md "Backup"). Takes a snapshot first.
+# Run twice: first with "apply" unticked (dry run, report in the log), then ticked. Guide: DEPLOY.md "Backups". Never run yet.
+name: restore
+on:
+  workflow_dispatch:
+    inputs:
+      backup:
+        description: 'Backup tag from the backups repo Releases (e.g. backup-2026-10-20), or "latest"'
+        default: latest
+        required: true
+      apply:
+        description: "Tick to really restore. Unticked = dry run, nothing changes"
+        type: boolean
+        default: false
+permissions: {}
+concurrency: restore
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }} # full-access Turso token (restore writes)
+      BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
+      GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+      BACKUP_REPO: ${{ secrets.BACKUP_REPO }}
+      BACKUP: ${{ inputs.backup }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --omit=dev
+        working-directory: web
+      - name: Download backup
+        run: |
+          tag="$BACKUP"
+          if [ "$tag" = latest ]; then
+            tag=$(gh release list --repo "$BACKUP_REPO" --limit 200 --json tagName --jq '.[].tagName' | { grep '^backup-' || true; } | sort -r | head -n 1)  # no match must reach the message below, not die on pipefail
+          fi
+          [ -n "$tag" ] || { echo "no backup releases found"; exit 1; }
+          echo "Using $tag"
+          gh release download "$tag" --repo "$BACKUP_REPO" --pattern '*.bak.enc' --output restore.bak.enc
+      # restore.mjs migrates the target first (an empty DB needs the tables), then dry-runs or merges.
+      - name: Restore (${{ inputs.apply && 'APPLY' || 'dry run' }})
+        run: node web/server/cli/restore.mjs restore.bak.enc ${{ inputs.apply && '--apply' || '' }}

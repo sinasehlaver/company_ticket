@@ -1,0 +1,64 @@
+{# Shared by day/create.html and hall/prices.html. Needs: rows [{name, price}], single_price, price #}
+{% if single_price %}
+    <label for="price">Bilet fiyatı (₺): </label>
+    <input id="price" type="number" name="price" min="0" max="32767" value="{{ price }}" required>
+{% else %}
+<div id="pe">
+    <p><b>1.</b> Fırça fiyatını yazın &nbsp; <input id="pe-brush" type="number" min="0" max="32767" placeholder="₺" style="width:5em">
+       &nbsp; <b>2.</b> Sıralara tıklayın veya üzerinden sürükleyin. Tek tek de düzenleyebilirsiniz.</p>
+    <div id="pe-rows" style="display:flex;flex-wrap:wrap;gap:6px;user-select:none">
+        {% for r in rows %}
+        <label class="pe-row" data-row="{{ r.name }}" style="border:1px solid #888;border-radius:6px;padding:4px 8px;cursor:pointer;text-align:center;min-width:3.4em">
+            <b>{{ r.name|upper }}</b><br>
+            <input type="number" name="price_{{ r.name }}" min="0" max="32767" value="{{ r.price }}" required style="width:4.5em" class="pe-input">
+        </label>
+        {% endfor %}
+    </div>
+    <p><label for="pe-schema">Şema metni (yapıştırabilirsiniz): </label>
+       <input id="pe-schema" name="schema" type="text" size="40" placeholder="a-f:75,g-k:60,l-z:50"></p>
+</div>
+<script>
+(function () {
+    var box = document.getElementById('pe-rows'), brush = document.getElementById('pe-brush'),
+        schema = document.getElementById('pe-schema'), down = false;
+    var inputs = function () { return Array.prototype.slice.call(box.querySelectorAll('.pe-input')); };
+    function tint() {
+        var vals = inputs().map(function (i) { return +i.value; }).filter(Boolean);
+        var distinct = vals.filter(function (v, i) { return vals.indexOf(v) === i; }).sort(function (a, b) { return b - a; });
+        inputs().forEach(function (i) {
+            var n = distinct.length, k = distinct.indexOf(+i.value);
+            i.parentNode.style.background = k < 0 ? '' : 'hsl(' + (n < 2 ? 200 : 150 + Math.round(210 * (n - 1 - k) / (n - 1))) + ',40%,60%)';
+        });
+        var rows = inputs().filter(function (i) { return i.value !== ''; })
+            .map(function (i) { return [i.name.slice(6), +i.value]; }).sort();
+        var out = [], run = null;
+        rows.forEach(function (r) {
+            if (run && run[2] === r[1] && r[0].charCodeAt(0) === run[1].charCodeAt(0) + 1) run[1] = r[0];
+            else { run = [r[0], r[0], r[1]]; out.push(run); }
+        });
+        schema.value = out.map(function (o) { return (o[0] === o[1] ? o[0] : o[0] + '-' + o[1]) + ':' + o[2]; }).join(',');
+    }
+    function paint(label) {
+        if (brush.value === '') return;
+        label.querySelector('.pe-input').value = brush.value; tint();
+    }
+    box.addEventListener('mousedown', function (e) {
+        if (e.target.classList.contains('pe-input')) return;
+        var l = e.target.closest('.pe-row'); if (!l) return; e.preventDefault(); down = true; paint(l);
+    });
+    box.addEventListener('mouseover', function (e) { var l = e.target.closest('.pe-row'); if (down && l) paint(l); });
+    document.addEventListener('mouseup', function () { down = false; });
+    box.addEventListener('input', tint);
+    schema.addEventListener('change', function () {
+        var map = {};
+        schema.value.toLowerCase().split(',').forEach(function (p) {
+            var m = p.trim().match(/^([a-z])(?:-([a-z]))?:(\d{1,5})$/); if (!m) return;
+            for (var c = m[1].charCodeAt(0); c <= (m[2] || m[1]).charCodeAt(0); c++) map[String.fromCharCode(c)] = m[3];
+        });
+        inputs().forEach(function (i) { var v = map[i.name.slice(6)]; if (v !== undefined) i.value = v; });
+        tint();
+    });
+    tint();
+})();
+</script>
+{% endif %}

@@ -1,0 +1,38 @@
+# Daily encrypted DB backup -> release asset in a PRIVATE repo. Setup + restore: DEPLOY.md "Backups". A failed run emails the repo owner.
+# Node port: web/server/cli/backup.mjs = the in-app .db export, AES-256-GCM (CTB1 + IV + ciphertext + tag). Never run yet.
+name: backup
+on:
+  schedule:
+    - cron: "17 2 * * *" # 02:17 UTC = 05:17 Istanbul
+  workflow_dispatch:
+permissions: {}
+concurrency: backup
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_AUTH_TOKEN: ${{ secrets.BACKUP_DATABASE_AUTH_TOKEN }} # Turso read-only token
+      BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
+      GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }} # fine-grained PAT: Contents RW on the backups repo only
+      BACKUP_REPO: ${{ secrets.BACKUP_REPO }}    # e.g. sinasehlaver/company-ticket-backups (private)
+      KEEP: "30"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --omit=dev
+        working-directory: web
+      - name: Export + encrypt
+        run: node web/server/cli/backup.mjs "company-$(date -u +%F).bak.enc"
+      - name: Upload (replace today's, prune old)
+        run: |
+          tag="backup-$(date -u +%F)"
+          gh release delete "$tag" --repo "$BACKUP_REPO" --cleanup-tag --yes 2>/dev/null || true
+          gh release create "$tag" "company-$(date -u +%F).bak.enc" --repo "$BACKUP_REPO" --title "$tag" --notes "encrypted company-ticket DB export (Node, CTB1)"
+          gh release list --repo "$BACKUP_REPO" --limit 200 --json tagName --jq '.[].tagName' | grep '^backup-' | sort -r | tail -n +$((KEEP+1)) |
+            while read -r t; do gh release delete "$t" --repo "$BACKUP_REPO" --cleanup-tag --yes; done
