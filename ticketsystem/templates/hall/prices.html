@@ -1,0 +1,16 @@
+{% extends 'base.html'%}
+{% load static %}
+
+{% block content %}
+    <div style="padding-left: 10px;">
+    <h1>{{ hall.name }} - bilet fiyatları</h1>
+    <p>Buradaki fiyatlar yeni gün oluştururken hazır gelir. Mevcut günlerin biletlerini değiştirmez.</p>
+    {% if error %}<p style="color:#b00"><b>{{ error }}</b></p>{% endif %}
+    <form method="post">
+        {% csrf_token %}
+        {% include 'partials/price_editor.html' %}
+        <br>
+        <input type="submit" value="Kaydet">
+    </form>
+    </div>
+{% endblock %}

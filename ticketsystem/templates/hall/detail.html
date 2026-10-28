@@ -12,6 +12,7 @@
 <body>
     {% block content %}
     <h1 align="center">{{ hall.name }}</h1>
+    {% if user.is_superuser %}<p align="center"><a href="{% url 'hall_prices' hall.id %}">Bilet fiyatlarını düzenle</a>{% if hall.price_schema %} ({{ hall.price_schema }}){% endif %}</p>{% endif %}
 
     <table align="center">
         <tbody align="center">

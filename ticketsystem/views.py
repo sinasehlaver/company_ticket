@@ -1,13 +1,18 @@
 from datetime import datetime
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Sum, Q
+from django.http import HttpResponse
+from django.utils import timezone
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import user_passes_test
 
 # Create your views here.
 from .forms import EventForm, HallForm
 from .models import *
+from .pricing import (MAX_PRICE, PriceError, format_schema, hall_rows, parse_schema,
+					  row_prices_from_post, tiers)
 
 
 def index(request):
@@ -15,6 +20,10 @@ def index(request):
 		return redirect('login')
 
 	return render(request, 'home/index.html')
+
+
+def healthz(request):
+	return HttpResponse('ok')  # no DB: Render's health check must not wake Turso
 
 
 def view_404(request, exception=None):
@@ -163,80 +172,86 @@ def get_day(request, day_id):
 				'sold_ticket_revenue': sold_ticket_revenue})
 
 
+def _price_context(hall, schema_text):
+	"""Rows + prefilled prices for the price editor. Unparseable saved schema -> empty prices."""
+	try:
+		prefill = parse_schema(schema_text)
+	except PriceError:
+		prefill = {}
+	rows = [{'name': r, 'price': prefill.get(r, '')} for r in hall_rows(hall)]
+	return {'rows': rows, 'hall': hall, 'single_price': not hall_rows(hall)}
+
+
+def _read_prices(hall, post):
+	"""-> (price per row letter, schema text). Count-type halls (Mimarlık) have one price in field 'price'."""
+	rows = hall_rows(hall)
+	if not rows:
+		raw = (post.get('price') or '').strip()
+		if not raw.isdigit() or int(raw) > MAX_PRICE:
+			raise PriceError('Geçerli bir fiyat girin')
+		return {}, raw
+	prices = row_prices_from_post(post, rows)
+	return prices, format_schema(prices)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def hall_prices(request, hall_id):
+	hall = get_object_or_404(Hall, pk=hall_id)
+	error = None
+	if request.method == 'POST':
+		try:
+			_, schema = _read_prices(hall, request.POST)
+			hall.price_schema = schema
+			hall.save(update_fields=['price_schema'])
+			return redirect('get_hall', hall.id)
+		except PriceError as e:
+			error = str(e)
+	return render(request, 'hall/prices.html', {**_price_context(hall, hall.price_schema), 'error': error})
+
+
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
 def create_day(request, event_id):
+	event = get_object_or_404(Event, pk=event_id)
+	hall = event.hall
+	error = None
 	if request.method == "POST":
-		event = get_object_or_404(Event, pk=event_id)
-		priceSchema = str(request.POST['priceSchema']).strip("\r").strip("\n").strip(" ").strip()
-		date_str = request.POST['date']
-		seats = event.hall.seats
-
-		if seats.get('count'):
-			day = Day(
-				date=datetime.strptime(date_str, '%Y-%m-%dT%H:%M'),
-				event=event,
-				tickets_dict={}
-			)
-			day.save()
-			for i in range(seats['count']):
-				ticket = Ticket(
-					row='m',
-					num=i,
-					day=day,
-					event=event,
-					price=priceSchema,
-					category=0
-				)
-				ticket.save()
+		try:
+			date = timezone.make_aware(datetime.strptime(request.POST.get('date', ''), '%Y-%m-%dT%H:%M'))
+			prices, schema = _read_prices(hall, request.POST)
+		except ValueError as e:  # PriceError is a ValueError; bad date raises plain ValueError
+			error = str(e) if isinstance(e, PriceError) else 'Geçerli bir tarih ve saat girin'
 		else:
-			categories = priceSchema.split(",")
-			prices = {}
-			i = 0
-			for cat in categories:
-				if len(cat.strip().split(':')) == 2:
-					cat_range = cat.strip().split(':')[0]
-					if len(cat_range.split('-')) == 2:
-						cat_range_s = cat_range.split('-')[0].lower()
-						cat_range_e = cat_range.split('-')[1].lower()
-						cat_price = int(cat.split(':')[1])
-						i += 1
-						for char_int in range(ord(cat_range_s), ord(cat_range_e) + 1):
-							prices[char_int] = (cat_price, i)
-			day = Day(
-				date=datetime.strptime(date_str, '%Y-%m-%dT%H:%M'),
-				event=event,
-				tickets_dict={}
-			)
-			day.save()
-			tickets_dict = {}
-			for row_dict in seats['all']:
-				for row in row_dict:
-					if row != "-":
-						tickets_dict[row] = {}
-						if prices.get(ord(row)):
-							price = prices[ord(row)][0]
-							cat = prices[ord(row)][1]
-							tickets_dict[row]['-1'] = (price, int(210*((i-cat-1)/(i-1))) + 150 )
-							for num in row_dict[row]:
-								if num != "-1":
-									ticket = Ticket(
-										row=row,
-										num=num,
-										day=day,
-										event=event,
-										price=price,
-										category=cat
-									)
-									ticket.save()
-									tickets_dict[row][num] = (ticket.id, ticket.status, ticket.lastModifiedBy)
-			day.tickets_dict = tickets_dict
-
-		day.save()
-
-		return redirect('get_day', day.id)
-
-	return render(request, 'day/create.html', {'event_id': event_id})
+			with transaction.atomic():
+				if request.POST.get('remember'):
+					hall.price_schema = schema
+					hall.save(update_fields=['price_schema'])
+				day = Day.objects.create(date=date, event=event, tickets_dict={})
+				if not prices:
+					Ticket.objects.bulk_create([
+						Ticket(row='m', num=i, day=day, event=event, price=int(schema), category=0)
+						for i in range(hall.seats['count'])])
+				else:
+					tier = tiers(prices)
+					tickets_dict, batch = {}, []
+					for row_dict in hall.seats['all']:
+						for row, nums in row_dict.items():
+							if row == '-':
+								continue
+							price = prices[row]
+							cat, hue = tier[price]
+							tickets_dict[row] = {'-1': (price, hue)}
+							batch.extend(Ticket(row=row, num=n, day=day, event=event, price=price, category=cat)
+										 for n in nums if n != '-1')
+					Ticket.objects.bulk_create(batch)
+					day.tickets_dict = tickets_dict
+					day.save(update_fields=['tickets_dict'])
+			return redirect('get_day', day.id)
+	schema_text = request.POST.get('schema') if request.method == 'POST' else hall.price_schema
+	return render(request, 'day/create.html',
+				  {'event_id': event_id, 'error': error, 'price': hall.price_schema if not hall_rows(hall) else '',
+				   **_price_context(hall, schema_text)})
 
 
 @login_required

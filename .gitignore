@@ -1,3 +1,6 @@
 /**/__pycache__/
 /**/.idea/
-/**/db.sqlite3
+/**/db.sqlite3/staticfiles/
+.env
+*.bak.enc
+db.sqlite3
