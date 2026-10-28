@@ -1,29 +1,72 @@
 # Company Ticket System
 
-Ticket sales for the ODTÜ "Company" Musicals Community: halls with seat maps, events, show days, seat reservation and sale, per-ticket log. Django 5.2, deployed on Render (free) with a Turso database. Used about two months a year.
+Seat-map ticket sales for the ODTÜ "Company" Musicals Community, used about two months a year.
 
-## Run locally
+- Halls with seat maps (seated, or a plain ticket count), events, show days with per-row prices
+- Live seat map: hold seats, sell them in one step, see other sellers' holds every 3 s; works on a phone
+- Cancel sales, per-seat log, per-event report with revenue and CSV export
+- Roles: sales, başkan, superuser; account management in the app
+- Backup: download the database, merge-import a backup, automatic snapshots before every import
+- Turkish first, English available; light/dark theme
 
-Quickest: `./start.sh` (venv, migrate, bootstrap with dev passwords, serves on 127.0.0.1:5130 and opens it). Or by hand:
+## Quick start
+
+Needs Node 22.13+ (Render runs 24).
 
 ```sh
-pip install -r requirements.txt
-DEBUG=1 python manage.py migrate
-DEBUG=1 ADMIN_PASSWORD=choose-one TICKET_USER_PASSWORD=choose-one python manage.py bootstrap   # superuser "sina" + 5 sales users
-DEBUG=1 python manage.py runserver 127.0.0.1:5130
-DEBUG=1 python manage.py test
+./start.sh
 ```
 
-Without `DATABASE_URL` it uses `./db.sqlite3`. `DATABASE_URL` must be `libsql://` (Turso), `wss://`, or `ws://127.0.0.1` (a local `sqld`).
+Installs dependencies when needed, starts the API on `127.0.0.1:5140` and the dev UI on `127.0.0.1:5141`, and opens Chrome (macOS `open`; on Linux/Windows open http://127.0.0.1:5141/ yourself, or run `cd web && npm run dev`). The local database is `web/data/company.db`; the first run creates the users with the dev passwords it prints and seeds the KKM and Mimarlık halls.
 
-Turso goes through `company/libsql_backend/` (a patch over `django-libsql`, which breaks on Django 5.1+ and its driver drops 1 row per 100 fetched). `scripts/smoke_libsql.py` checks the libsql path end to end against a throwaway sqld; the test suite runs on SQLite only.
+## Commands
 
-## Prices
+Run in `web/`:
 
-Each hall stores its price schema, so creating a show day only needs a date. On the "new day" page (and Sahneler → hall → *Bilet fiyatlarını düzenle*): type a price in the brush box, then click or drag over the rows to paint them; or edit single rows, or paste a schema like `a-f:75,g-k:60,l-z:50`. Single-price halls (Mimarlık) show one price box. "Save for hall" (on by default) makes the next day come prefilled.
+| Command | What it does |
+|---|---|
+| `npm run dev` | API (watch) on :5140 + vite on :5141 |
+| `npm test` | Server and client unit tests on a temporary SQLite file |
+| `npm run test:sqld` | The same suite against a throwaway local `sqld` (Turso protocol; needs `sqld` installed) |
+| `npm run build` | Builds the client to `client/dist` (served by the server) |
+| `npm run verify` | Builds, starts the server on a free port with a scratch DB, runs the headless browser check |
+| `npm start` | Production server (`node server/index.js`) |
 
-Hall setup (JSON for `seats` / `seatPlan`): KKM → `kkm_seats.json`, `kkm_seatplan.json`, schema `a-f:75,g-k:60,l-z:50`. Mimarlık with 280 seats → seats `{"count": 280}`, seatPlan `{"all": [{"count": 280}]}`, price `60`.
+## Roles
 
-## Deploy and backups
+| Role | Can |
+|---|---|
+| Sales (`mimarlik`, `kutuphane`, `carsi`, `hazirlik`, `disari`) | Browse events, hold and sell seats; theme and language in Settings |
+| Başkan | Everything sales can, plus halls, logs, events, days and prices; cancel sales; release others' holds; report; manage sales accounts; import a backup |
+| Superuser | Everything, plus deletes (typed confirmation), başkan accounts and roles, restore a snapshot |
 
-[DEPLOY.md](DEPLOY.md): Render + Turso setup, daily encrypted backup to a private GitHub repo, restore.
+## Configuration
+
+| Env var | Meaning |
+|---|---|
+| `DATABASE_URL` | Default `file:web/data/company.db`. Production needs `libsql://` or `https://` (Turso) |
+| `DATABASE_AUTH_TOKEN` | Turso token |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Superuser (default `sina`), created on first boot only |
+| `BASKAN_USERNAME` / `BASKAN_PASSWORD` | Başkan (default `baskan`), created on first boot only |
+| `TICKET_USER_PASSWORD` | Shared password for the 5 sales users on first boot (unset = random; printed once in dev, never in production: set them in Hesaplar) |
+| `HOST` / `PORT` | Listen address, default `127.0.0.1:5140` |
+| `NODE_ENV=production` | Secure cookies, proxy trust, Turso-only DB (`ALLOW_FILE_DB=1` overrides for local tests) |
+| `BACKUP_KEY` | 32-byte key (64 hex or base64) for the encrypted CLI backups |
+
+Users are never overwritten from env after they exist; change passwords in the app (Hesaplar).
+
+## How it works
+
+Express 5 + `@libsql/client` (SQLite file locally, Turso in production) and a React + Vite client in `web/`. Holds and sales are single conditional updates, so two sellers can never get the same seat.
+
+**Backups.** Settings → Yedek (başkan and superuser; the file holds password hashes): download the whole database as a `.db` file, or import one as a merge (newer row wins, a sale is never undone, deletes only for a superuser, blocked while anyone holds seats) after a preview and a typed `İÇE AKTAR`. Each import first saves a snapshot (last 5 kept, restorable by a superuser; a restore replaces the data only, never accounts or passwords). From a terminal, `node server/cli/backup.mjs out.bak.enc` and `node server/cli/restore.mjs in.bak.enc [--apply]` do the same with AES-256-GCM files; GitHub Actions run them nightly and on demand (see DEPLOY.md).
+
+Internals: [web/docs/DEV_NOTES.md](web/docs/DEV_NOTES.md).
+
+## Deploy
+
+Render (free) + Turso: [DEPLOY.md](DEPLOY.md).
+
+## The Django app
+
+The original Django 5.2 app (`ticketsystem/`, `company/`) stays as a reference. Run it with `scripts/start-django.sh` (venv, migrate, dev users, `127.0.0.1:5130`), tests with `DEBUG=1 python manage.py test`. Its Render blueprint is `scripts/render-django.yaml`.

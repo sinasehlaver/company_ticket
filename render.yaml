@@ -1,0 +1,36 @@
+# Render Blueprint: the Node app in web/ on a free web service + Turso DB (external). Render's free disk is wiped on every
+# deploy and spin-down, so server/index.js refuses to boot with NODE_ENV=production unless DATABASE_URL is libsql:// or https://.
+# Setup: DEPLOY.md. The Django blueprint (runtime python, gunicorn) is kept in scripts/render-django.yaml (it was never committed).
+# No SESSION_SECRET: sessions are random ids stored hashed in the DB, nothing is signed.
+services:
+  - type: web
+    name: company-ticket
+    runtime: node
+    plan: free
+    region: frankfurt          # closest to Turkey; create the Turso DB in fra too
+    rootDir: web               # Render clones only this repo: the build uses web/vendor/look (no ../../_look)
+    buildCommand: npm ci && npm run build   # vite + plugin-react are in dependencies, so NODE_ENV=production is fine
+    # No Shell on the free plan: migrations + first-boot users/halls run at every boot (idempotent, never overwrite).
+    startCommand: node server/index.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production        # Secure cookie, trust proxy, DATABASE_URL check
+      - key: HOST
+        value: 0.0.0.0           # PORT is set by Render
+      - key: DATABASE_URL        # libsql://<db>-<org>.turso.io   (turso db show <db> --url)
+        sync: false
+      - key: DATABASE_AUTH_TOKEN # turso db tokens create <db>
+        sync: false
+      - key: ADMIN_USERNAME
+        value: sina
+      - key: ADMIN_PASSWORD      # superuser, created on first boot only
+        sync: false
+      - key: BASKAN_USERNAME
+        value: baskan
+      - key: BASKAN_PASSWORD     # başkan, created on first boot only
+        sync: false
+      - key: TICKET_USER_PASSWORD # shared password for mimarlik/kutuphane/carsi/hazirlik/disari, first boot only
+        sync: false
