@@ -1,0 +1,78 @@
+/* look — THE foundation tokens, shared by ui-picker (index.html links it first) and every app that depends on "look".
+   Every look-and-feel choice is a token keyed by a data-* attribute on <html>: data-palette x data-theme, data-accent,
+   data-type, data-shape, data-density, data-motion, data-depth, data-icons. Selectors stay bare [data-x] (not html[...])
+   so the picker's .stage.scope previews can override one attr locally. data-theme is always "light" or "dark"
+   (apps resolve "system" in JS). Ids must match ui-picker/variants*.js; _look/scripts/sync.mjs checks that. */
+
+/* ---------- foundation: palette x theme ---------- */
+[data-palette="midnight"][data-theme="dark"] { --bg:#0b0b0d; --surface:#18191d; --surface2:#212327; --text:#f2f3f5; --muted:#8b909a; --line:#2b2d32; }
+[data-palette="midnight"][data-theme="light"] { --bg:#f4f4f6; --surface:#fff; --surface2:#eceef2; --text:#14151a; --muted:#666c7a; --line:#e2e4e9; }
+[data-palette="paper"][data-theme="light"] { --bg:#f6f4f0; --surface:#fff; --surface2:#efece6; --text:#1f1d1a; --muted:#6f6a62; --line:#e2ded6; }
+[data-palette="paper"][data-theme="dark"] { --bg:#101114; --surface:#191a1f; --surface2:#22242b; --text:#ece9e4; --muted:#8f8b84; --line:#2c2e36; }
+[data-palette="cool"][data-theme="light"] { --bg:#f6f7f9; --surface:#fff; --surface2:#eef0f3; --text:#16181d; --muted:#646b78; --line:#dfe2e8; }
+[data-palette="cool"][data-theme="dark"] { --bg:#0f1115; --surface:#171a20; --surface2:#1f232b; --text:#e8eaef; --muted:#8a92a0; --line:#2a2f38; }
+[data-palette="graphite"][data-theme="light"] { --bg:#ececee; --surface:#f9f9fa; --surface2:#e3e3e6; --text:#1d1d1f; --muted:#6e6e73; --line:#d4d4d8; }
+[data-palette="graphite"][data-theme="dark"] { --bg:#1e1e20; --surface:#2a2a2d; --surface2:#333336; --text:#f5f5f7; --muted:#98989d; --line:#3d3d41; }
+
+[data-accent="blue"] { --acc-l:#1f69c9; --acc-d:#5b9dff; }
+[data-accent="brick"] { --acc-l:#c73e28; --acc-d:#e8705a; }
+[data-accent="violet"] { --acc-l:#6a4fd6; --acc-d:#9b8cff; }
+[data-accent="teal"] { --acc-l:#0f8f80; --acc-d:#3cc6b4; }
+[data-accent="amber"] { --acc-l:#b86e08; --acc-d:#f0a94e; }
+[data-theme="light"] { --accent: var(--acc-l); --on-accent:#fff; --danger:#d6384b;
+  --shadow-sm: 0 1px 2px rgba(20,21,26,.05), 0 1px 1px rgba(20,21,26,.04);
+  --shadow-md: 0 3px 10px rgba(20,21,26,.06), 0 10px 26px -10px rgba(20,21,26,.12);
+  --shadow-lg: 0 8px 20px rgba(20,21,26,.08), 0 22px 48px -16px rgba(20,21,26,.16); }
+[data-theme="dark"] { --accent: var(--acc-d); --on-accent:#0b0c10; --danger:#ff6b7a;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3), 0 1px 1px rgba(0,0,0,.22);
+  --shadow-md: 0 4px 14px rgba(0,0,0,.34), 0 10px 28px -10px rgba(0,0,0,.42);
+  --shadow-lg: 0 10px 28px rgba(0,0,0,.42), 0 24px 54px -18px rgba(0,0,0,.52); }
+html, .scope { --accent-tint: color-mix(in srgb, var(--accent) 14%, transparent); --accent-ink: color-mix(in srgb, var(--accent) 70%, var(--text));
+  --danger-tint: color-mix(in srgb, var(--danger) 14%, transparent); --hover: color-mix(in srgb, var(--text) 6%, transparent);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent); }
+
+[data-type="grotesk"] { --font-text: "Inter", "Inter Variable", -apple-system, system-ui, sans-serif; --font-display: "Space Grotesk", "Space Grotesk Variable", "Inter", -apple-system, system-ui, sans-serif; --display-track: -0.01em; }
+[data-type="system"] { --font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif; --display-track: -0.02em; }
+[data-type="serif"] { --font-text: -apple-system, system-ui, sans-serif; --font-display: "Iowan Old Style", "Charter", Georgia, serif; --display-track: 0; }
+[data-type="mono"] { --font-text: -apple-system, system-ui, sans-serif; --font-display: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; --display-track: -0.02em; }
+
+[data-shape="sharp"] { --r-xs:3px; --r-sm:4px; --r:6px; --r-lg:8px; --r-btn:4px; }
+[data-shape="soft"] { --r-xs:6px; --r-sm:8px; --r:10px; --r-lg:14px; --r-btn:8px; }
+[data-shape="round"] { --r-xs:8px; --r-sm:10px; --r:13px; --r-lg:17px; --r-btn:10px; }
+[data-shape="pill"] { --r-xs:8px; --r-sm:10px; --r:14px; --r-lg:20px; --r-btn:999px; }
+
+[data-density="compact"] { --u:3px; --fs:13px; }
+[data-density="comfortable"] { --u:4px; --fs:14px; }
+[data-density="spacious"] { --u:5px; --fs:15px; }
+html, .scope { --s1:var(--u); --s2:calc(var(--u)*2); --s3:calc(var(--u)*3); --s4:calc(var(--u)*4); --s5:calc(var(--u)*6); --s6:calc(var(--u)*8); --row:calc(var(--u)*9); }
+
+[data-motion="snappy"] { --ease:cubic-bezier(.2,.7,.3,1); --t-press:90ms; --t-hover:120ms; --t-pop:160ms; --t-slow:220ms; --press:.96; --lift:-1px; }
+[data-motion="smooth"] { --ease:cubic-bezier(.22,.61,.36,1); --t-press:120ms; --t-hover:160ms; --t-pop:220ms; --t-slow:300ms; --press:.96; --lift:-2px; }
+[data-motion="calm"] { --ease:cubic-bezier(.25,.8,.25,1); --t-press:160ms; --t-hover:220ms; --t-pop:320ms; --t-slow:420ms; --press:.98; --lift:-2px; }
+[data-motion="minimal"] { --ease:linear; --t-press:0ms; --t-hover:100ms; --t-pop:120ms; --t-slow:150ms; --press:1; --lift:0px; }
+@media (prefers-reduced-motion: reduce) { html, .scope { --t-press:0ms; --t-hover:0ms; --t-pop:0ms; --t-slow:0ms; --press:1; --lift:0px; } }
+
+/* ---------- added 2026-10-21 (were picker-more.css) ---------- */
+[data-palette="sand"][data-theme="light"] { --bg:#f3efe7; --surface:#fbf9f4; --surface2:#ebe5d9; --text:#2a251d; --muted:#7a7062; --line:#ddd5c6; }
+[data-palette="sand"][data-theme="dark"] { --bg:#17140f; --surface:#211d17; --surface2:#2b261f; --text:#eee7da; --muted:#9c9282; --line:#352f27; }
+[data-palette="nord"][data-theme="light"] { --bg:#eceff4; --surface:#f8f9fb; --surface2:#e5e9f0; --text:#2e3440; --muted:#5e6779; --line:#d8dee9; }
+[data-palette="nord"][data-theme="dark"] { --bg:#242933; --surface:#2e3440; --surface2:#3b4252; --text:#eceff4; --muted:#a3abbb; --line:#434c5e; }
+[data-accent="rose"] { --acc-l:#c2386b; --acc-d:#f27aa3; }
+[data-accent="green"] { --acc-l:#2f8a3e; --acc-d:#5fcf72; }
+[data-accent="indigo"] { --acc-l:#3f51c7; --acc-d:#7f8cff; }
+[data-accent="ink"] { --acc-l:#2b2f38; --acc-d:#e6e8ec; }
+[data-type="rounded"] { --font-text: -apple-system, system-ui, sans-serif; --font-display: ui-rounded, "SF Pro Rounded", "Nunito", -apple-system, system-ui, sans-serif; --display-track: 0; }
+[data-type="humanist"] { --font-text: "Avenir Next", "Seravek", "Segoe UI", system-ui, sans-serif; --font-display: "Avenir Next", "Seravek", "Segoe UI", system-ui, sans-serif; --display-track: -0.005em; }
+[data-motion="bouncy"] { --ease:cubic-bezier(.34,1.56,.64,1); --t-press:140ms; --t-hover:180ms; --t-pop:300ms; --t-slow:380ms; --press:.95; --lift:-2px; }
+/* same specificity as the [data-motion] rules and later, so reduced motion really wins */
+@media (prefers-reduced-motion: reduce) { [data-motion] { --t-press:0ms; --t-hover:0ms; --t-pop:0ms; --t-slow:0ms; --press:1; --lift:0px; } }
+/* [data-depth="layered"] = the two-part shadows under [data-theme] above (the default) */
+[data-depth="flat"] { --shadow-sm: none; --shadow-md: 0 0 0 1px var(--line); --shadow-lg: 0 0 0 1px var(--line); }
+[data-depth="deep"][data-theme="light"] { --shadow-sm: 0 1px 3px rgba(20,21,26,.08), 0 2px 6px rgba(20,21,26,.06);
+  --shadow-md: 0 6px 16px rgba(20,21,26,.1), 0 18px 40px -12px rgba(20,21,26,.22); --shadow-lg: 0 14px 32px rgba(20,21,26,.14), 0 34px 70px -18px rgba(20,21,26,.3); }
+[data-depth="deep"][data-theme="dark"] { --shadow-sm: 0 2px 4px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+  --shadow-md: 0 8px 20px rgba(0,0,0,.5), 0 20px 44px -12px rgba(0,0,0,.6); --shadow-lg: 0 16px 38px rgba(0,0,0,.58), 0 36px 80px -18px rgba(0,0,0,.7); }
+[data-icons="thin"] { --icon-w: 1.25; }
+[data-icons="regular"] { --icon-w: 2; }
+[data-icons="bold"] { --icon-w: 2.75; }
+svg[stroke="currentColor"] { stroke-width: var(--icon-w, 2); }

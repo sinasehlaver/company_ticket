@@ -1,0 +1,22 @@
+{
+  "name": "look",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The user's ui-picker look as one linked package: tokens, kit components, Settings → Appearance",
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./tokens.css",
+    "./kit.css": "./kit.css",
+    "./look.js": "./look.js",
+    "./vite": "./vite.js",
+    "./kit/*": "./kit/*"
+  },
+  "scripts": {
+    "sync": "node scripts/sync.mjs",
+    "test": "node scripts/sync.mjs --check && node --test kit/*.test.js"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  }
+}
