@@ -11,16 +11,20 @@ import { useLoad } from "../ui/useLoad.js";
 import { Busy } from "../ui/Busy.jsx";
 import { Skeleton } from "../ui/Skeleton.jsx";
 import { stamp } from "../format.js";
+import { roleLabel } from "../roles.js";
 
-// Hesaplar (başkan+). Başkan manages sales accounts; the superuser manages every account but its own. The server
-// enforces the same rules (and never lets the last active superuser go); the UI just hides what would be refused.
-// Only the superuser changes roles (per-row Select -> in-app confirm -> PUT {role}).
-const canManage = (me, u) => me.id !== u.id && (me.role === "superuser" || u.role === "sales");
+// Hesaplar (cap accounts). The server says per row whether the caller may manage it (u.canManage: never self; a
+// non-superuser only accounts whose role is within its own caps, never baskan/superuser) and per role whether it may
+// put an account in it (GET /api/roles `assignable`). It enforces the same rules (and never lets the last active
+// superuser go); the UI just hides what would be refused. Role change = per-row Select -> in-app confirm -> PUT {role}.
 
 export function Accounts({ me }) {
   const t = useT();
   const { lang } = usePrefs();
   const res = useLoad(() => get("/api/users"), []);
+  const rolesRes = useLoad(() => get("/api/roles"), []);
+  const roles = rolesRes.data?.roles ?? [];
+  const nameOf = (key) => roleLabel(t, key, roles.find((r) => r.key === key)?.name);
   const [shown, setShown] = useState(null); // {username, password} shown once
   const replace = (u) => res.setData((d) => ({ ...d, users: d.users.map((x) => (x.id === u.id ? u : x)) }));
   const setDisabled = async (u, disabled) => {
@@ -43,8 +47,8 @@ export function Accounts({ me }) {
   };
   const changeRole = async (u, role) => {
     if (role === u.role) return;
-    const from = t(`role_${u.role}`), to = t(`role_${role}`);
-    const ok = await confirmDialog({ title: t("roleTitle", { name: u.username, from, to }), text: t("roleText"), ok: t("roleOk"), danger: role !== "superuser" && u.role !== "sales" });
+    const from = nameOf(u.role), to = nameOf(role);
+    const ok = await confirmDialog({ title: t("roleTitle", { name: u.username, from, to }), text: t("roleText"), ok: t("roleOk"), danger: role === "superuser" || role === "baskan" });
     if (!ok) return;
     try {
       const r = await put(`/api/users/${u.id}`, { role });
@@ -52,13 +56,13 @@ export function Accounts({ me }) {
       toast(t("roleChanged", { name: u.username, role: to }));
     } catch (e) { toast(e.message); }
   };
-  const roleOpts = ["sales", "baskan", "superuser"].map((v) => ({ value: v, label: t(`role_${v}`) }));
+  const roleOpts = roles.filter((r) => r.assignable).map((r) => ({ value: r.key, label: roleLabel(t, r.key, r.name) }));
   const users = res.data?.users;
   return (
     <div className="page page-mid accounts-page">
       <header className="view-head"><div><h1>{t("tabAccounts")}</h1>
         <p className="muted">{me.role === "superuser" ? t("accountsHintSuper") : t("accountsHintBoss")}</p></div></header>
-      <NewUser me={me} min={res.data?.minPassword ?? 8} onCreated={(u, password) => {
+      <NewUser roles={roleOpts.filter((o) => o.value !== "superuser")} min={res.data?.minPassword ?? 8} onCreated={(u, password) => {
         res.setData((d) => ({ ...d, users: [...d.users, u] }));
         toast(t("userCreated", { name: u.username }));
         if (password) setShown({ username: u.username, password });
@@ -72,13 +76,13 @@ export function Accounts({ me }) {
               <thead><tr><th>{t("username")}</th><th>{t("colRole")}</th><th>{t("colActive")}</th><th>{t("colLastLogin")}</th><th className="num"><span className="sr-only">{t("actions")}</span></th></tr></thead>
               <tbody>
                 {users.map((u) => {
-                  const can = canManage(me, u);
+                  const can = u.canManage === true;
                   return (
                     <tr key={u.id} data-user={u.username} data-off={u.disabled || undefined}>
                       <td><b>{u.username}</b>{u.id === me.id && <span className="muted small"> · {t("you")}</span>}</td>
-                      <td>{can && me.role === "superuser"
+                      <td>{can && roleOpts.length > 1
                         ? <span className="role-select" data-role-select={u.username}><Select label={t("roleFor", { name: u.username })} value={u.role} options={roleOpts} onChange={(v) => changeRole(u, v)} width={170} /></span>
-                        : <span className="chip" data-role={u.role}>{t(`role_${u.role}`)}</span>}</td>
+                        : <span className="chip" data-role={u.role}>{roleLabel(t, u.role, u.roleName)}</span>}</td>
                       <td>{can
                         ? <ActiveSwitch u={u} onChange={(v) => setDisabled(u, !v)} label={t("activeFor", { name: u.username })} />
                         : <span className={u.disabled ? "muted" : ""}>{u.disabled ? t("inactive") : t("active")}</span>}</td>
@@ -106,14 +110,13 @@ function ActiveSwitch({ u, onChange, label }) {
   );
 }
 
-function NewUser({ me, min, onCreated }) {
+function NewUser({ roles, min, onCreated }) {
   const t = useT();
   const [username, setUsername] = useState("");
   const [role, setRole] = useState("sales");
   const [generate, setGenerate] = useState(true);
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
-  const roles = [{ value: "sales", label: t("role_sales") }, ...(me.role === "superuser" ? [{ value: "baskan", label: t("role_baskan") }] : [])];
   const submit = async () => {
     setError(null);
     if (!/^[A-Za-z0-9._-]{2,40}$/.test(username.trim())) { setError(t("usernameBad")); return false; }

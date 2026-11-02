@@ -1,4 +1,4 @@
-// Rapor (baskan+): JSON for the tab, CSV download for Excel.
+// Rapor (cap report): JSON for the tab, CSV download for Excel.
 import { httpError } from '../auth.js';
 import { buildReport, reportCsv } from '../report.js';
 
@@ -9,9 +9,9 @@ const eventFilter = (q) => {
 };
 
 export default function reportRoutes(route) {
-  route('GET', '/api/report', 'baskan', (req, res, { db }) => buildReport(db, eventFilter(req.query.event)));
+  route('GET', '/api/report', 'report', (req, res, { db }) => buildReport(db, eventFilter(req.query.event)));
 
-  route('GET', '/api/report.csv', 'baskan', async (req, res, { db }) => {
+  route('GET', '/api/report.csv', 'report', async (req, res, { db }) => {
     const csv = reportCsv(await buildReport(db, eventFilter(req.query.event)));
     const d = new Date(Date.now() + 180 * 60000).toISOString(); // Istanbul wall clock for the filename
     const name = `rapor-${d.slice(0, 10).replace(/-/g, '')}-${d.slice(11, 16).replace(':', '')}.csv`;

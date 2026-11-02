@@ -21,7 +21,7 @@ const kb = (n) => `${Math.max(1, Math.round(n / 1024)).toLocaleString("tr")} KB`
 
 export function BackupSection({ me }) {
   const t = useT();
-  const elevated = me.role === "baskan" || me.role === "superuser";
+  const elevated = me.caps?.backup === true;
   const file = useRef(null);
   const [preview, setPreview] = useState(null);
   const [restoring, setRestoring] = useState(null);

@@ -2,10 +2,9 @@
 import { scrypt as scryptCb, randomBytes, timingSafeEqual, createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import { now, newUid } from './db.js';
+import { SUPER, ALL_CAPS, capsFrom, hasCap, roleExists } from './roles.js';
 
 const scrypt = promisify(scryptCb);
-export const ROLES = ['sales', 'baskan', 'superuser'];
-export const RANK = { sales: 1, baskan: 2, superuser: 3 };
 export const COOKIE = 'ct_sid';
 export const SESSION_MS = 12 * 60 * 60 * 1000;
 const SLIDE_AFTER_MS = 60 * 1000; // re-extend at most once a minute
@@ -32,7 +31,7 @@ const dummyHash = async () => (DUMMY ??= await hashPassword('dummy-password'));
 export const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 
 export async function createUser(db, { username, password, role = 'sales', disabled = false }) {
-  if (!ROLES.includes(role)) throw new Error(`bad role ${role}`);
+  if (typeof role !== 'string' || !(await roleExists(db, role))) throw new Error(`bad role ${role}`);
   const t = now();
   const r = await db.execute({
     sql: 'INSERT INTO users (uid, username, hash, role, disabled, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -93,8 +92,8 @@ export function sessionLoader(db) {
     if (!sid || sid.length > 100) return next();
     const idHash = sha256(sid);
     const r = await db.execute({
-      sql: `SELECT s.csrf, s.expires_at, u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id
-            WHERE s.id_hash = ? AND u.disabled = 0`,
+      sql: `SELECT s.csrf, s.expires_at, u.id, u.username, u.role, r.name AS role_name, r.caps FROM sessions s JOIN users u ON u.id = s.user_id
+            LEFT JOIN roles r ON r.key = u.role WHERE s.id_hash = ? AND u.disabled = 0`,
       args: [idHash],
     });
     const row = r.rows[0];
@@ -108,18 +107,33 @@ export function sessionLoader(db) {
       await db.execute({ sql: 'UPDATE sessions SET expires_at = ? WHERE id_hash = ?', args: [new Date(Date.now() + SESSION_MS).toISOString(), idHash] });
       res.append('Set-Cookie', cookieHeader(sid, { secure: req.app.locals.secureCookie, maxAgeSec: SESSION_MS / 1000 }));
     }
-    req.user = { id: Number(row.id), username: row.username, role: row.role };
+    req.user = userWithCaps(row);
     req.session = { idHash, csrf: row.csrf };
     next();
   };
 }
 
-/** minRole null = public. Otherwise 401 without a session, 403 below the rank. */
-export function requireRole(minRole) {
+/** Session row (id, username, role, role_name, caps) -> req.user {id, username, role, roleName, caps}. */
+export function userWithCaps(row) {
+  const sup = row.role === SUPER;
+  return {
+    id: Number(row.id), username: row.username, role: row.role,
+    roleName: sup ? 'Süper kullanıcı' : row.role_name ?? row.role,
+    caps: sup ? { ...ALL_CAPS } : capsFrom(row.caps), // a role deleted under a user (never via the app) = no caps
+  };
+}
+
+/**
+ * Route access. cap null = public; 'login' = any signed-in user; 'superuser' = the superuser only; a cap name or an
+ * array of cap names (any of them). 401 without a session, 403 without the cap.
+ */
+export function requireCap(cap) {
   return (req, res, next) => {
-    if (!minRole) return next();
+    if (!cap) return next();
     if (!req.user) return next(httpError(401, 'Giriş yapmanız gerekiyor'));
-    if (RANK[req.user.role] < RANK[minRole]) return next(httpError(403, 'Bu işlem için yetkiniz yok'));
+    if (cap === 'login') return next();
+    const ok = cap === SUPER ? req.user.role === SUPER : [].concat(cap).some((c) => hasCap(req.user.caps, c));
+    if (!ok) return next(httpError(403, 'Bu işlem için yetkiniz yok'));
     next();
   };
 }
@@ -154,7 +168,7 @@ export async function login(req, res, db, limiter) {
   }
   const key = `${req.ip}|${username.toLowerCase()}`;
   if (limiter.blocked(key)) throw httpError(429, 'Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.');
-  const r = await db.execute({ sql: 'SELECT id, username, hash, role, disabled FROM users WHERE username = ?', args: [username] });
+  const r = await db.execute({ sql: 'SELECT u.id, u.username, u.hash, u.role, u.disabled, r.name AS role_name, r.caps FROM users u LEFT JOIN roles r ON r.key = u.role WHERE u.username = ?', args: [username] });
   const u = r.rows[0];
   const ok = u ? await verifyPassword(password, u.hash) : (await verifyPassword(password, await dummyHash()), false);
   if (!ok) {
@@ -175,7 +189,7 @@ export async function login(req, res, db, limiter) {
     { sql: 'INSERT INTO user_logins (user_id, at) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET at = excluded.at', args: [u.id, t] },
   ], 'write');
   res.append('Set-Cookie', cookieHeader(sid, { secure: req.app.locals.secureCookie, maxAgeSec: SESSION_MS / 1000 }));
-  return { user: { id: Number(u.id), username: u.username, role: u.role }, csrf };
+  return { user: userWithCaps(u), csrf };
 }
 
 export async function logout(req, res, db) {

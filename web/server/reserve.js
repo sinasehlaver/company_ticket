@@ -3,7 +3,7 @@
 // same batch/tx, so GET /state can answer 204 cheaply. Functions throw httpError; conflicts throw Conflict
 // (routes turn it into 409 {error, state}).
 import { now, newUid, tx } from './db.js';
-import { httpError, RANK } from './auth.js';
+import { httpError } from './auth.js';
 import { one, json } from './routes/util.js';
 
 export const FREE = 0, HELD = 1, SOLD = 2;
@@ -56,7 +56,12 @@ export async function dayState(db, dayId, user) {
     { sql: VERSION_SQL, args: [dayId] },
     { sql: 'SELECT t.id, t.row, t.num, t.price, t.category, t.status, t.owner, u.username FROM tickets t LEFT JOIN users u ON u.id = t.owner WHERE t.day_id = ? ORDER BY t.id', args: [dayId] },
   ], 'read');
-  const boss = RANK[user.role] >= RANK.baskan;
+  // who holds/sold what: for releasing others' holds (and reading logs); totals: cap report; cancellable: cap cancel
+  const caps = user.caps ?? {};
+  const boss = caps.releaseOthers === true || caps.logs === true;
+  const money = caps.report === true;
+  const cancelMode = caps.cancel ?? 'off';
+  let soldMine = 0;
   const seats = [];
   const mine = { count: 0, total: 0, list: [] };
   let free = 0, soldCount = 0, revenue = 0;
@@ -66,7 +71,7 @@ export async function dayState(db, dayId, user) {
     const isMine = status === HELD && Number(r.owner) === user.id;
     seats.push([id, r.row, r.num, price, Number(r.category), status, isMine, boss && status !== FREE ? r.username ?? null : null]);
     if (status === FREE) free++;
-    else if (status === SOLD) { soldCount++; revenue += price; }
+    else if (status === SOLD) { soldCount++; revenue += price; if (Number(r.owner) === user.id) soldMine++; }
     else if (boss && r.owner !== null) {
       const k = Number(r.owner);
       const h = holders.get(k) ?? { userId: k, username: r.username ?? '?', count: 0 };
@@ -76,7 +81,8 @@ export async function dayState(db, dayId, user) {
     if (isMine) { mine.count++; mine.total += price; mine.list.push({ id, row: r.row, num: r.num, price }); }
   }
   return {
-    version: versionOf(v.rows[0]), seats, mine, free, sold: boss ? { count: soldCount, revenue } : null,
+    version: versionOf(v.rows[0]), seats, mine, free, sold: money ? { count: soldCount, revenue } : null,
+    cancel: cancelMode === 'off' ? null : { mode: cancelMode, max: cancelMode === 'any' ? soldCount : soldMine },
     holders: boss ? [...holders.values()].sort((a, b) => b.count - a.count || a.username.localeCompare(b.username)) : null,
   };
 }
@@ -254,7 +260,10 @@ function cancelCount(v) {
  * Cancel sales (F10, baskan+). seated body {tickets:'a-32, b-25'}, count body {count:N}. All-or-nothing.
  * -> {cancelled:[{row,num,price}]}. Sold tickets -> free, owner NULL, last_modified_by = canceller, 'satış iptal' log each.
  */
+/** cap cancel 'own' = only tickets this user sold (tickets.owner stays the seller on a sale); 'any' = every sold one. */
 export async function cancel(db, day, user, body) {
+  const own = user.caps?.cancel !== 'any';
+  if (user.caps?.cancel !== 'own' && user.caps?.cancel !== 'any') throw httpError(403, 'Bu işlem için yetkiniz yok');
   const seated = day.kind === 'seated';
   const seats = seated ? parseSeatList(body?.tickets) : null;
   const n = seated ? 0 : cancelCount(body?.count);
@@ -262,30 +271,35 @@ export async function cancel(db, day, user, body) {
     let rows;
     if (seated) {
       const r = await t.execute({
-        sql: `SELECT id, row, num, price, status FROM tickets WHERE day_id = ? AND (${seats.map(() => '(row = ? AND num = ?)').join(' OR ')})`,
+        sql: `SELECT id, row, num, price, status, owner FROM tickets WHERE day_id = ? AND (${seats.map(() => '(row = ? AND num = ?)').join(' OR ')})`,
         args: [day.id, ...seats.flatMap((s) => [s.row, s.num])],
       });
       const byKey = new Map(r.rows.map((x) => [`${x.row}-${x.num}`, x]));
-      const missing = [], unsold = [];
+      const missing = [], unsold = [], others = [];
       rows = [];
       for (const s of seats) {
         const x = byKey.get(`${s.row}-${s.num}`);
         if (!x) missing.push(label(s.row, s.num));
         else if (Number(x.status) !== SOLD) unsold.push(label(s.row, s.num));
+        else if (own && Number(x.owner) !== user.id) others.push(label(s.row, s.num));
         else rows.push(x);
       }
-      const msg = [missing.length && `Bu günde yok: ${missing.join(', ')}`, unsold.length && `Satılmamış: ${unsold.join(', ')}`].filter(Boolean);
+      if (others.length && !missing.length && !unsold.length) throw httpError(403, `Yalnızca kendi sattığınız biletleri iptal edebilirsiniz: ${others.join(', ')}`);
+      const msg = [missing.length && `Bu günde yok: ${missing.join(', ')}`, unsold.length && `Satılmamış: ${unsold.join(', ')}`,
+        others.length && `Başkasının satışı: ${others.join(', ')}`].filter(Boolean);
       if (msg.length) throw httpError(400, msg.join(' · '));
     } else {
-      const sold = Number((await t.execute({ sql: 'SELECT COUNT(*) AS n FROM tickets WHERE day_id = ? AND status = 2', args: [day.id] })).rows[0].n);
-      if (n > sold) throw httpError(400, sold ? `En fazla ${sold} bilet iptal edilebilir` : 'Bu günde satılmış bilet yok');
-      rows = (await t.execute({ sql: 'SELECT id, row, num, price FROM tickets WHERE day_id = ? AND status = 2 ORDER BY updated_at DESC, id DESC LIMIT ?', args: [day.id, n] })).rows;
+      const mineOnly = own ? ' AND owner = ?' : '';
+      const mineArg = own ? [user.id] : [];
+      const sold = Number((await t.execute({ sql: `SELECT COUNT(*) AS n FROM tickets WHERE day_id = ? AND status = 2${mineOnly}`, args: [day.id, ...mineArg] })).rows[0].n);
+      if (n > sold) throw httpError(400, sold ? `En fazla ${sold} bilet iptal edilebilir` : own ? 'Bu günde sizin sattığınız bilet yok' : 'Bu günde satılmış bilet yok');
+      rows = (await t.execute({ sql: `SELECT id, row, num, price FROM tickets WHERE day_id = ? AND status = 2${mineOnly} ORDER BY updated_at DESC, id DESC LIMIT ?`, args: [day.id, ...mineArg, n] })).rows;
     }
     const ts = now();
     const ids = rows.map((x) => Number(x.id));
     const upd = await t.execute({
-      sql: `UPDATE tickets SET status = 0, owner = NULL, last_modified_by = ?, updated_at = ? WHERE day_id = ? AND status = 2 AND id IN (${ids.map(() => '?').join(', ')})`,
-      args: [user.username, ts, day.id, ...ids],
+      sql: `UPDATE tickets SET status = 0, owner = NULL, last_modified_by = ?, updated_at = ? WHERE day_id = ? AND status = 2${own ? ' AND owner = ?' : ''} AND id IN (${ids.map(() => '?').join(', ')})`,
+      args: [user.username, ts, day.id, ...(own ? [user.id] : []), ...ids],
     });
     if (upd.rowsAffected !== ids.length) throw new Conflict('Biletler o sırada değişti, tekrar deneyin');
     await t.execute(logInsert(rows, day.id, 'satış iptal', user.username, ts));

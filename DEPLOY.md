@@ -5,8 +5,8 @@ Cost $0. Render's free web service sleeps after ~15 min idle (first load ~1 min)
 ## 1. Turso
 
 ```sh
-turso db create company-ticket --location fra
-turso db show company-ticket --url          # libsql://company-ticket-<you>.turso.io
+turso db create company-ticket              # lands in the "default" group = aws-eu-west-1 (no --location: it's fixed per group)
+turso db show company-ticket --url          # libsql://company-ticket-<you>.aws-eu-west-1.turso.io
 turso db tokens create company-ticket       # full access -> DATABASE_AUTH_TOKEN
 ```
 

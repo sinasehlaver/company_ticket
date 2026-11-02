@@ -271,7 +271,7 @@ describe('Hesaplar', () => {
     assert.equal(userChangeProblem(actor, sup, { disabled: true }, 2), null);
     assert.equal(userChangeProblem(actor, sup, { role: 'superuser' }, 1), null);
     assert.match(userChangeProblem(actor, { ...sup, id: 1 }, { disabled: true }, 5), /Kendi/);
-    assert.match(userChangeProblem({ id: 3, role: 'baskan' }, sup, { disabled: true }, 5), /yalnızca satış/);
+    assert.match(userChangeProblem({ id: 3, role: 'baskan', caps: {} }, sup, { disabled: true }, 5), /yalnızca süper/);
   });
 });
 

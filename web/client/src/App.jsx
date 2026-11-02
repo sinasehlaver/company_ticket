@@ -19,19 +19,21 @@ import { Day } from "./views/Day.jsx";
 import { Logs, DayLog } from "./views/Logs.jsx";
 import { Report } from "./views/Report.jsx";
 import { Accounts } from "./views/Accounts.jsx";
+import { Roles } from "./views/Roles.jsx";
 import { TypedDeleteHost } from "./ui/TypedConfirm.jsx";
 import { RepriceHost } from "./ui/RepriceDialog.jsx";
 
-export const RANK = { sales: 1, baskan: 2, superuser: 3 };
-export const atLeast = (me, role) => (RANK[me?.role] ?? 0) >= RANK[role];
+/** Caps come from /api/me (server/roles.js); cancel is 'off'|'own'|'any', the rest booleans. The server enforces them. */
+export const canOf = (me) => (cap) => (cap === "cancel" ? (me?.caps?.cancel ?? "off") !== "off" : me?.caps?.[cap] === true);
 
-// Root tabs, filtered by role (the server enforces the same minRole per route).
+// Root tabs, filtered by the caller's caps (the server enforces the same cap per route).
 const TABS = [
-  { id: "events", label: "tabEvents", minRole: "sales" },
-  { id: "halls", label: "tabHalls", minRole: "baskan" },
-  { id: "logs", label: "tabLogs", minRole: "baskan" },
-  { id: "report", label: "tabReport", minRole: "baskan" },
-  { id: "accounts", label: "tabAccounts", minRole: "baskan" },
+  { id: "events", label: "tabEvents", cap: null },
+  { id: "halls", label: "tabHalls", cap: "halls" },
+  { id: "logs", label: "tabLogs", cap: "logs" },
+  { id: "report", label: "tabReport", cap: "report" },
+  { id: "accounts", label: "tabAccounts", cap: "accounts" },
+  { id: "roles", label: "tabRoles", cap: "roles" },
 ];
 // One shortcut table: the cheat sheet and the tooltips are built from it.
 const KEYS = [["mod+k", "palette"], ["?", "shortcuts"], ["escape", "back"], ["[", "prevDay"], ["]", "nextDay"]];
@@ -79,7 +81,8 @@ function Shell({ me, onOut }) {
   useEffect(() => setBack(null), [route]);
 
   const parts = split(route);
-  const tabs = TABS.filter((tab) => atLeast(me, tab.minRole));
+  const can = canOf(me);
+  const tabs = TABS.filter((tab) => !tab.cap || can(tab.cap));
   const active = parts[0] === "day" ? "events" : parts[0];
   const parent = parentOf(route, back);
   const goBack = () => parent && go(parent);
@@ -107,10 +110,8 @@ function Shell({ me, onOut }) {
 
   const commands = [
     ...tabs.map((tab) => ({ id: `tab-${tab.id}`, label: `${t("goTo")}: ${t(tab.label)}`, run: () => go(tab.id) })),
-    ...(atLeast(me, "baskan") ? [
-      { id: "new-event", label: t("newEvent"), run: () => go("events/new") },
-      { id: "new-hall", label: t("newHall"), run: () => go("halls/new") },
-    ] : []),
+    ...(can("events") ? [{ id: "new-event", label: t("newEvent"), run: () => go("events/new") }] : []),
+    ...(can("halls") ? [{ id: "new-hall", label: t("newHall"), run: () => go("halls/new") }] : []),
     ...events.map((e) => ({ id: `ev-${e.id}`, label: `${t("event")}: ${e.name}`, run: () => go(`events/${e.id}`) })),
     { id: "settings", label: t("settings"), run: () => setSettings(true) },
     { id: "theme-dark", label: `${t("theme")}: ${t("dark")}`, run: () => setPrefs({ theme: "dark" }) },
@@ -122,20 +123,22 @@ function Shell({ me, onOut }) {
   ];
 
   const [a, b, c] = parts;
-  const ctx = { me, setBack, boss: atLeast(me, "baskan"), sudo: atLeast(me, "superuser") };
+  const ctx = { me, setBack, can, sudo: me.role === "superuser" };
   let view;
   if (a === "events" && b === "new") view = <Events {...ctx} creating />;
   else if (a === "events" && b && c === "new-day") view = <NewDay {...ctx} id={b} />;
   else if (a === "events" && b) view = <Event {...ctx} id={b} />;
-  else if ((a === "halls" || a === "logs") && !ctx.boss) view = <Events {...ctx} />;
+  else if (a === "halls" && !can("halls")) view = <Events {...ctx} />;
+  else if (a === "logs" && !can("logs")) view = <Events {...ctx} />;
   else if (a === "halls" && b === "new") view = <NewHall {...ctx} />;
   else if (a === "halls" && b) view = <Hall {...ctx} id={b} />;
   else if (a === "halls") view = <Halls {...ctx} />;
   else if (a === "day" && b) view = <Day {...ctx} id={b} />;
   else if (a === "logs" && b) view = <DayLog {...ctx} id={b} />;
   else if (a === "logs") view = <Logs {...ctx} />;
-  else if (a === "report" && ctx.boss) view = <Report {...ctx} />;
-  else if (a === "accounts" && ctx.boss) view = <Accounts {...ctx} />;
+  else if (a === "report" && can("report")) view = <Report {...ctx} />;
+  else if (a === "accounts" && can("accounts")) view = <Accounts {...ctx} />;
+  else if (a === "roles" && can("roles")) view = <Roles {...ctx} />;
   else view = <Events {...ctx} />;
 
   useEffect(() => { document.title = config.title; }, [route]);

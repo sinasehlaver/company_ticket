@@ -15,7 +15,8 @@ import { DeleteButton } from "../ui/TypedConfirm.jsx";
 import { SeatMap } from "./SeatMap.jsx";
 
 // F2 Sahneler list.
-export function Halls({ boss }) {
+export function Halls({ can }) {
+  const boss = can("halls");
   const t = useT();
   const list = useLoad(() => get("/api/halls"), []);
   const halls = list.data?.halls ?? [];
@@ -47,7 +48,8 @@ export function Halls({ boss }) {
 }
 
 // F2/F4 Salon: read-only map preview; başkan+ renames and edits the saved prices (existing days keep theirs).
-export function Hall({ id, boss, sudo }) {
+export function Hall({ id, can, sudo }) {
+  const boss = can("halls");
   const t = useT();
   const res = useLoad(() => get(`/api/halls/${id}`), [id]);
   const hall = res.data?.hall;

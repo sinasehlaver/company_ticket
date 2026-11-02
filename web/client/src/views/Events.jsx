@@ -18,7 +18,8 @@ import { isPrice, missingRows, pricesBody } from "../prices.js";
 import { PriceEditor } from "./PriceEditor.jsx";
 
 // F2 list of events (newest first). Başkan+: "Yeni etkinlik" (F5) inline card, also reached by #/events/new.
-export function Events({ boss, creating }) {
+export function Events({ can, creating }) {
+  const boss = can("events");
   const t = useT();
   const { lang } = usePrefs();
   const list = useLoad(() => get("/api/events"), []);
@@ -97,7 +98,8 @@ function NewEventCard({ onDone }) {
 }
 
 // F2 event → its days as cards. Başkan+: "Yeni gün".
-export function Event({ id, boss, sudo }) {
+export function Event({ id, can, sudo }) {
+  const boss = can("events");
   const t = useT();
   const { lang } = usePrefs();
   const ev = useLoad(() => get(`/api/events/${id}`), [id]);
@@ -110,7 +112,7 @@ export function Event({ id, boss, sudo }) {
       <header className="view-head">
         <div><p className="crumb"><a href="#/events">{t("tabEvents")}</a></p>
           {boss ? <RenameTitle name={e.name} label={t("eventName")} save={rename} /> : <h1>{e.name}</h1>}
-          <p className="muted">{boss ? <a className="chip chip-link" href={`#/halls/${e.hallId}`}>{e.hallName}</a> : <span className="chip">{e.hallName}</span>} · {t("dayCount", { n: e.days.length })}</p></div>
+          <p className="muted">{can("halls") ? <a className="chip chip-link" href={`#/halls/${e.hallId}`}>{e.hallName}</a> : <span className="chip">{e.hallName}</span>} · {t("dayCount", { n: e.days.length })}</p></div>
         <div className="head-chips">
           {sudo && <DeleteButton title={t("deleteEventTitle", { name: e.name })} text={t("deleteEventText", { n: e.days.length })} name={e.name}
             path={`/api/events/${e.id}`} onDone={() => go("events")} />}

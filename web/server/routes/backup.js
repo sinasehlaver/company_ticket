@@ -48,8 +48,8 @@ async function sendFile(res, path, name, size) {
 }
 
 export default function backupRoutes(route) {
-  // başkan+ only: the file holds every account's password hash
-  route('GET', '/api/backup/export', 'baskan', async (req, res, ctx) => {
+  // cap backup only: the file holds every account's password hash
+  route('GET', '/api/backup/export', 'backup', async (req, res, ctx) => {
     const st = state(ctx);
     const t = st.clock();
     const last = st.lastExport.get(req.user.id);
@@ -72,7 +72,7 @@ export default function backupRoutes(route) {
     }
   });
 
-  route('POST', '/api/backup/import/preview', 'baskan', async (req, res, ctx) => {
+  route('POST', '/api/backup/import/preview', 'backup', async (req, res, ctx) => {
     const st = state(ctx);
     await st.sweep();
     const path = await receiveUpload(req, res);
@@ -92,7 +92,7 @@ export default function backupRoutes(route) {
     }
   });
 
-  route('POST', '/api/backup/import/commit', 'baskan', async (req, res, ctx) => {
+  route('POST', '/api/backup/import/commit', 'backup', async (req, res, ctx) => {
     const st = state(ctx);
     await st.sweep();
     if (typed(req.body?.confirm) !== CONFIRM_IMPORT) throw httpError(400, `Onaylamak için ${CONFIRM_IMPORT} yazın`);
@@ -120,9 +120,9 @@ export default function backupRoutes(route) {
     return { report: out.report, warnings: out.warnings, snapshotId: snap.id };
   });
 
-  route('GET', '/api/backup/snapshots', 'baskan', async (req, res, ctx) => ({ snapshots: await listSnapshots(ctx.db) }));
+  route('GET', '/api/backup/snapshots', 'backup', async (req, res, ctx) => ({ snapshots: await listSnapshots(ctx.db) }));
 
-  route('GET', '/api/backup/snapshots/:id/download', 'baskan', async (req, res, ctx) => {
+  route('GET', '/api/backup/snapshots/:id/download', 'backup', async (req, res, ctx) => {
     const snap = await getSnapshot(ctx.db, Number(req.params.id));
     if (!snap) throw httpError(404, 'Anlık görüntü bulunamadı');
     await audit(ctx.db, req.user.username, 'backup.snapshot.download', { id: snap.id });

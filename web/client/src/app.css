@@ -321,3 +321,17 @@ body:has(.sellbar) .toasts { bottom: 112px; }
 .diff-table td.diff-hit { color: var(--accent); font-weight: 600; }
 .backup-warn { margin: 0; padding-left: calc(var(--s3) + 1em); }
 .warn-days { margin: var(--s1) 0 0; padding-left: 1.1em; font-variant-numeric: tabular-nums; white-space: normal; }
+
+/* Roller (views/Roles.jsx): one card per role; cancel 3-way + grouped switches, saved per change. */
+.role-card { display: grid; gap: var(--s3); padding: var(--s4) var(--s5); }
+.cap-seg { flex: 0 1 420px; } .cap-seg .seg-btn { white-space: nowrap; }
+.cap-group .sub-h { margin: 0 !important; }
+.role-head { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.role-head h2 { margin: 0; }
+.cap-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--s2) var(--s4); }
+.cap-group { display: grid; gap: var(--s1); align-content: start; }
+.cap-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 36px; }
+.cap-label { display: inline-flex; align-items: center; gap: var(--s1); }
+.cap-seg[aria-busy] { opacity: .6; pointer-events: none; }
+.switch:disabled { cursor: not-allowed; opacity: .45; }
+.btn-danger-text { color: var(--danger); }

@@ -5,7 +5,7 @@ Seat-map ticket sales for the ODTÜ "Company" Musicals Community, used about two
 - Halls with seat maps (seated, or a plain ticket count), events, show days with per-row prices
 - Live seat map: hold seats, sell them in one step, see other sellers' holds every 3 s; works on a phone
 - Cancel sales, per-seat log, per-event report with revenue and CSV export
-- Roles: sales, başkan, superuser; account management in the app
+- Roles: superuser, başkan, sales plus custom roles, each a set of permissions edited on the Roller screen; account management in the app
 - Backup: download the database, merge-import a backup, automatic snapshots before every import
 - Turkish first, English available; light/dark theme
 
@@ -34,11 +34,16 @@ Run in `web/`:
 
 ## Roles
 
-| Role | Can |
+Every signed-in account can browse events and hold and sell seats. What else a role may do is a set of permissions, edited on the **Roller** tab: cancel sold tickets (off / own sales / all), release others' holds, edit events and days, change prices, halls, logs, report, accounts, backup, manage roles.
+
+| Role | Default permissions |
 |---|---|
-| Sales (`mimarlik`, `kutuphane`, `carsi`, `hazirlik`, `disari`) | Browse events, hold and sell seats; theme and language in Settings |
-| Başkan | Everything sales can, plus halls, logs, events, days and prices; cancel sales; release others' holds; report; manage sales accounts; import a backup |
-| Superuser | Everything, plus deletes (typed confirmation), başkan accounts and roles, restore a snapshot |
+| Sales (`mimarlik`, `kutuphane`, `carsi`, `hazirlik`, `disari`) | Cancel its own sales; nothing else |
+| Başkan | Everything, cancel any sale |
+| Custom (e.g. "Kapı görevlisi") | Starts with none |
+| Superuser | Everything, always (not editable), plus deletes (typed confirmation) and snapshot restore |
+
+Only the superuser changes the Başkan role. Anyone else with "Rolleri yönet" can only grant permissions they have themselves, and can't edit a role that has more. A role that still has accounts can't be deleted.
 
 ## Configuration
 
@@ -59,7 +64,7 @@ Users are never overwritten from env after they exist; change passwords in the a
 
 Express 5 + `@libsql/client` (SQLite file locally, Turso in production) and a React + Vite client in `web/`. Holds and sales are single conditional updates, so two sellers can never get the same seat.
 
-**Backups.** Settings → Yedek (başkan and superuser; the file holds password hashes): download the whole database as a `.db` file, or import one as a merge (newer row wins, a sale is never undone, deletes only for a superuser, blocked while anyone holds seats) after a preview and a typed `İÇE AKTAR`. Each import first saves a snapshot (last 5 kept, restorable by a superuser; a restore replaces the data only, never accounts or passwords). From a terminal, `node server/cli/backup.mjs out.bak.enc` and `node server/cli/restore.mjs in.bak.enc [--apply]` do the same with AES-256-GCM files; GitHub Actions run them nightly and on demand (see DEPLOY.md).
+**Backups.** Settings → Yedek (needs the backup permission; the file holds password hashes): download the whole database as a `.db` file, or import one as a merge (newer row wins, a sale is never undone, deletes only for a superuser, blocked while anyone holds seats) after a preview and a typed `İÇE AKTAR`. Each import first saves a snapshot (last 5 kept, restorable by a superuser; a restore replaces the data only, never accounts or passwords). From a terminal, `node server/cli/backup.mjs out.bak.enc` and `node server/cli/restore.mjs in.bak.enc [--apply]` do the same with AES-256-GCM files; GitHub Actions run them nightly and on demand (see DEPLOY.md).
 
 Internals: [web/docs/DEV_NOTES.md](web/docs/DEV_NOTES.md).
 

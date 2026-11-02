@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { roleLabel } from "./roles.js";
 import { useT } from "look/kit/i18n.js";
 import { setPrefs, usePrefs } from "look/kit/prefs.js";
 import { nextTheme } from "look/kit/pick-logic.js";
@@ -34,7 +35,7 @@ export function AppBar({ tabs, active, go, canBack, onBack, onPalette, onHelp, o
           <button className="btn btn-ghost btn-icon hide-sm" onClick={onHelp} aria-label={t("shortcuts")} data-tip={tip(t("shortcuts"), "?")}>?</button>
           <button className="btn btn-ghost btn-icon" onClick={() => setPrefs({ theme: nextTheme(theme, osDark()) })} aria-label={t("theme")} data-tip={dark ? t("light") : t("dark")}>{dark ? "☀" : "☾"}</button>
           <button className="btn btn-ghost btn-icon" onClick={onSettings} aria-label={t("settings")} data-tip={t("settings")}>⚙</button>
-          <button ref={userBtn} className="user-btn" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)} data-tip={`${me.username} · ${t(`role_${me.role}`)}`}>
+          <button ref={userBtn} className="user-btn" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)} data-tip={`${me.username} · ${roleLabel(t, me.role, me.roleName)}`}>
             <span className="avatar-dot" aria-hidden>{me.username.slice(0, 1).toLocaleUpperCase("tr")}</span>
             <span className="user-name ell hide-sm">{me.username}</span>
           </button>
@@ -43,7 +44,7 @@ export function AppBar({ tabs, active, go, canBack, onBack, onPalette, onHelp, o
       <Popover open={menu} anchor={userBtn.current} onClose={() => setMenu(false)} width={220}>
         <div className="user-card">
           <strong className="ell">{me.username}</strong>
-          <span className="role-chip" data-role={me.role}>{t(`role_${me.role}`)}</span>
+          <span className="role-chip" data-role={me.role}>{roleLabel(t, me.role, me.roleName)}</span>
         </div>
         <Menu onClose={() => setMenu(false)} items={[
           { id: "settings", label: t("settings"), icon: "⚙", run: onSettings },

@@ -167,9 +167,40 @@ describe('seated day', () => {
     assert.equal(await logs('satış iptal'), 0);
   });
 
-  test('cancel by sales -> 403', async () => {
+  test('cancel own vs any: sales cancels only its own sales; another seller gets 403, nothing changes', async () => {
+    await sold(['a', '1'], ['a', '2']); // sold by satis1
+    const st = (await s2.get(`/api/days/${day}/state`)).body;
+    assert.deepEqual(st.cancel, { mode: 'own', max: 0 });
+    assert.equal(st.sold, null, 'totals need cap report');
+    let r = await cancel({ tickets: 'a-1' }, s2);
+    assert.equal(r.status, 403);
+    assert.match(r.body.error, /kendi sattığınız.*A-1/);
+    assert.equal(await t.count('SELECT COUNT(*) AS n FROM tickets WHERE status = 2'), 2);
+    assert.deepEqual((await s1.get(`/api/days/${day}/state`)).body.cancel, { mode: 'own', max: 2 });
+    r = await cancel({ tickets: 'a-1' }, s1);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual(r.body.state.cancel, { mode: 'own', max: 1 });
+    // mixed own + other's: all-or-nothing 403 naming the other's seat; with a bad seat too -> one 400 listing both
+    await toggle(s2, await tid('a', '3'));
+    assert.equal((await s2.post(`/api/days/${day}/sell`, { ticketIds: [await tid('a', '3')] })).status, 200);
+    r = await cancel({ tickets: 'a-2, a-3' }, s1);
+    assert.equal(r.status, 403);
+    assert.match(r.body.error, /kendi sattığınız.*A-3/);
+    r = await cancel({ tickets: 'a-2, a-3, a-4' }, s1);
+    assert.equal(r.status, 400);
+    assert.match(r.body.error, /Bu günde yok: A-4 · Başkasının satışı: A-3/);
+    assert.equal(await t.count('SELECT COUNT(*) AS n FROM tickets WHERE status = 2'), 2);
+    // any: başkan cancels another's sale
+    assert.deepEqual((await boss.get(`/api/days/${day}/state`)).body.cancel, { mode: 'any', max: 2 });
+    assert.equal((await cancel({ tickets: 'a-3' })).status, 200);
+  });
+
+  test('cancel off (custom role) -> 403 at the route', async () => {
+    await t.db.execute(`INSERT INTO roles (uid, key, name, caps, updated_at) VALUES ('ru-door', 'r-door', 'Kapı', '{"cancel":"off"}', '2026-01-01T00:00:00.000Z')`);
+    const door = await t.login('r-door', 'kapi1');
     await sold(['a', '1']);
-    assert.equal((await cancel({ tickets: 'a-1' }, s1)).status, 403);
+    assert.equal((await door.get(`/api/days/${day}/state`)).body.cancel, null);
+    assert.equal((await cancel({ tickets: 'a-1' }, door)).status, 403);
     assert.equal(await t.count('SELECT COUNT(*) AS n FROM tickets WHERE status = 2'), 1);
   });
 
@@ -275,6 +306,22 @@ describe('count day', () => {
     assert.equal((await s2.post(`/api/days/${day}/sell`, { ticketIds: [lo.id] })).status, 200);
     const r = await boss.post(`/api/days/${day}/cancel`, { count: 1 });
     assert.deepEqual(r.body.cancelled, [{ row: 'm', num: lo.num, price: 55 }]);
+  });
+
+  test('count day, cancel own: takes only the caller\'s most recent sales; over its own count -> 400', async () => {
+    const a = (await hold(s1)).body.state.mine.list[0];
+    assert.equal((await s1.post(`/api/days/${day}/sell`, { ticketIds: [a.id] })).status, 200);
+    await new Promise((ok) => setTimeout(ok, 5));
+    const b = (await hold(s2)).body.state.mine.list[0];
+    assert.equal((await s2.post(`/api/days/${day}/sell`, { ticketIds: [b.id] })).status, 200);
+    let r = await s1.post(`/api/days/${day}/cancel`, { count: 2 });
+    assert.equal(r.status, 400);
+    assert.match(r.body.error, /En fazla 1/);
+    r = await s1.post(`/api/days/${day}/cancel`, { count: 1 });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.cancelled, [{ row: 'm', num: a.num, price: 55 }]);
+    assert.match((await s1.post(`/api/days/${day}/cancel`, { count: 1 })).body.error, /sizin sattığınız bilet yok/);
+    assert.equal(await t.count('SELECT COUNT(*) AS n FROM tickets WHERE status = 2'), 1);
   });
 });
 

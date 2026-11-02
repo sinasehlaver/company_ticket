@@ -23,11 +23,13 @@ Env: `DATABASE_URL` (default `file:<web>/data/company.db`, cwd-independent), `DA
 | `pricing.js` | `parseSchema(text)`, `formatSchema(rowPrices)`, `hallRows(hall)`, `rowPricesFromBody(prices, rows)`, `readPrices(hall, body) -> {prices, schema}`, `tiers(rowPrices) -> Map price -> [category, hue]`, `PriceError`, `MAX_PRICE` |
 | `seats.js` | `validateSeats(seats)`, `istanbulToUtc('YYYY-MM-DDTHH:MM') -> ISO \| null`, `createDay(db, eventRow, hallRow, body) -> dayId`, `MAX_COUNT`, `IST_OFFSET_MIN` |
 | `reserve.js` | `loadDay(db,id)`, `siblingDays(db,eventId)`, `dayVersion(db,dayId)`, `dayState(db,dayId,user)`, `toggleSeat(db,day,user,ticketId) -> 'held'\|'released'`, `countHold`, `countRelease`, `sell(db,day,user,ids) -> {sold,total}`, `cancel(db,day,user,body) -> {cancelled}`, `dayLogs(db,day,seat?)`, `parseSeat`, `parseSeatList`, `Conflict` (→ 409 + state), `FREE/HELD/SOLD` |
-| `auth.js` | `hashPassword`, `verifyPassword`, `createUser(db, {username, password, role, disabled})`, `setUserDisabled(db, userId, bool)` (kills sessions), `sessionLoader(db)`, `requireRole(minRole)`, `csrfCheck`, `originCheck`, `login(req,res,db,limiter)`, `logout(req,res,db)`, `makeLimiter({max, windowMs, clock})`, `httpError(status, msg)`, `RANK`, `ROLES`, `COOKIE`, `SESSION_MS` |
+| `auth.js` | `hashPassword`, `verifyPassword`, `createUser(db, {username, password, role, disabled})`, `setUserDisabled(db, userId, bool)` (kills sessions), `sessionLoader(db)` (joins `roles` for caps), `requireCap(cap)`, `userWithCaps(row)`, `csrfCheck`, `originCheck`, `login(req,res,db,limiter)`, `logout(req,res,db)`, `makeLimiter({max, windowMs, clock})`, `httpError(status, msg)`, `COOKIE`, `SESSION_MS` |
+| `roles.js` | caps model: `SUPER`, `BUILTIN`, `CANCEL` (`off\|own\|any`), `FLAGS`, `CAP_KEYS`, `ALL_CAPS`, `NO_CAPS`, `DEFAULTS`, `capsFrom(text)`, `parseCaps(body)` (untrusted → caps or error), `parseRoleName`, `hasCap`, `capsWithin(a,b)`, `capsOf(db,key)`, `roleExists`, `roleChangeProblem(actor,key,targetCaps,nextCaps)`, `canManageRole(actor,key,caps)`, `seedRolesSql()` |
 | `bootstrap.js` | `bootstrap(db, env, log) -> created[]`, `STAFF`, `SEED_HALLS` |
 | `app.js` | `createApp({dbUrl, authToken, env}) -> Promise<{app, db, ctx}>` (runs `migrate`, not `bootstrap`), `dbUrlProblem(env)`, `DEFAULT_DB_URL` |
 | `index.js` | boot: env check → createApp → bootstrap → listen |
-| `routes/index.js` | `ROUTES`, `route(method, path, minRole, handler)`, `mountRoutes(app, ctx)` |
+| `routes/index.js` | `ROUTES`, `route(method, path, cap, handler)`, `mountRoutes(app, ctx)` |
+| `routes/roles.js` | `GET/POST /api/roles`, `PUT/DELETE /api/roles/:key` |
 | `routes/days.js` | day page, state poll, toggle/count/sell/cancel, logs (phase 2) |
 | `routes/{auth,halls,events}.js` | route registrations; `halls.js` also exports `hallOut(row)`, `getHall(db, id)` |
 | `routes/util.js` | `nameFrom(body, label)`, `one(db, sql, args, notFoundMsg)`, `json(text, fallback)` |
@@ -65,20 +67,29 @@ Env: `DATABASE_URL` (default `file:<web>/data/company.db`, cwd-independent), `DA
   Version string = `<counter>.<max ticket updated_at ms>.<ticket count>`, so imports also change it. Phase 4/5:
   deleting a day deletes its row; anything else that writes tickets must bump it too.
 - Holds/sells don't write `audit` (the `logs` table is their record); cancel writes `sale.cancel` too.
-- `users.role` ∈ `sales|baskan|superuser`, `disabled` 0/1. `sessions.id_hash` = sha256(cookie id).
+- `users.role` = `superuser` or a `roles.key` (no CHECK, no FK: existence checked in code; v5 rebuilt the table to drop the old CHECK, with `fkOff: true` = `PRAGMA foreign_keys=OFF` around the migration via `executeMultiple`). `roles` = `{uid, key, name, caps JSON, updated_at}`; built-ins `baskan`, `sales` seeded; custom keys `r-<12 hex>`; superuser has no row. `disabled` 0/1. `sessions.id_hash` = sha256(cookie id).
 
 ## HTTP conventions
 
-- Route table: add routes only through `route(method, path, minRole, handler)` inside a
-  `routes/<area>.js` registered in `routes/index.js`. `minRole` null = public (only `/healthz`,
-  `POST /api/login` — a test enforces this). Chain per route: `requireRole` (401 no session, 403 below
-  rank) → `csrfCheck` (non-GET) → handler. `originCheck` runs on every non-GET `/api` (login too).
+- Route table: add routes only through `route(method, path, cap, handler)` inside a
+  `routes/<area>.js` registered in `routes/index.js`. `cap` null = public (only `/healthz`,
+  `POST /api/login` — a test enforces this); `'login'` = any signed-in user; `'superuser'`; a cap key or an array
+  (any of). Chain per route: `requireCap` (401 no session, 403 missing cap) → `csrfCheck` (non-GET) → handler.
+  The Role column in the API tables below predates caps: read `baskan` as the cap in the **Caps per route** list. `originCheck` runs on every non-GET `/api` (login too).
 - `handler(req, res, ctx)` with `ctx = {db, env, limiter}`; return a value → JSON 200 (set
   `res.status(201)` first for creates); throw `httpError(status, '<Türkçe mesaj>')` for errors →
   `{error}`. Anything else thrown → 500 `{error:'Sunucu hatası'}` (logged).
 - Any `:id` param must be `^[1-9]\d{0,15}$` else 404 (router.param). Unknown `/api/*` → 404 JSON.
   JSON body limit 100kb → 413; bad JSON → 400 `Geçersiz JSON`.
-- `req.user = {id, username, role}`, `req.session = {idHash, csrf}`. Role order sales < baskan < superuser.
+- `req.user = {id, username, role, roleName, caps}`, `req.session = {idHash, csrf}`. Caps are read per request (a role
+  edit applies on the next request, no re-login). `/api/me` and login return the same user object.
+- **Caps per route**: `login` = events/days GETs, `GET /api/halls/:id`, state/toggle/count/sell; `cancel` (off/own/any;
+  own = `tickets.owner === user.id`, a sale keeps the seller as owner) = `POST /days/:id/cancel`; `releaseOthers` =
+  `POST /days/:id/release`; `events` = POST/PUT events, POST/PUT days; `reprice` = prices preview/PUT; `halls` =
+  POST/PUT halls + prices (`GET /api/halls` = halls **or** events); `logs`; `report`; `accounts` = `/api/users*`;
+  `backup` = export/import/snapshots; `roles` = POST/PUT/DELETE `/api/roles` (GET = accounts or roles). `superuser` only:
+  DELETE hall/event/day, snapshot restore. `dayState` sends `sold` only with `report`, holders with `releaseOthers`/`logs`,
+  `cancel: null | {mode, max}` (max = sold count, or own sold count).
 - Client contract: `POST /api/login {username,password}` → `{user, csrf}` + cookie `ct_sid`;
   `GET /api/me` → `{user, csrf}`; send `X-CSRF-Token: <csrf>` on every non-GET. Login: 10
   failures/15 min per ip+username → 429 (in-memory, per process). Session 12h sliding.
@@ -161,7 +172,10 @@ Migration 4 = `snapshots.reason` (`import` | `restore` | `cli`).
 - Tickets: a live sale (status 2) is never reverted, even by a newer cancel in the file (`sold-kept`); those are flagged in
   warning `soldCancelledInFile` `{count, days:[{dayUid, date, event, count, seats:['A-12',…] | null}]}` (`null` = count hall,
   count only), shown in the preview and result dialogs and the CLI output for a manual cancel. File holds (status 1) come in free (`holdsDropped`).
-- Users: never your own account (`own-account`); a başkan importer only adds/changes sales accounts (`needs-superuser`).
+- Roles (before users, matched by `key`): newer wins; a non-superuser importer needs cap `roles` (`needs-roles`) and never
+  touches `baskan` or a role whose caps (file or live) exceed its own (`needs-superuser`).
+- Users: never your own account (`own-account`); role unknown after the roles step → `unknown-role`; a non-superuser importer
+  only adds/changes accounts whose file and live role it may manage (`canManageRole`, else `needs-superuser`).
 - Logs are a union by uid; audit is never merged. Timestamps in the future → warning `futureDates`. Touched days bump `day_versions`.
 - Any live hold blocks preview, commit, restore and the CLI (409 `{error, holds:[{dayId,date,event,count}]}`).
 
@@ -245,8 +259,8 @@ prefix and a body in `BODIES` if an allowed call would otherwise 500.
 
 ## Client, phase 4
 
-- **Tabs** Halls, Loglar, Rapor (`views/Report.jsx`) and Hesaplar (`views/Accounts.jsx`) are baskan+ (`TABS` minRole); `ctx.sudo` = superuser. Sales sees only Etkinlikler. Day page hides Loglar button and hall crumb for sales; event page shows hall name as a plain chip.
-- **Settings drawer**: sales gets theme (light/dark/system) + language only; başkan+ get the full Appearance section.
+- **Tabs** by cap (`TABS[].cap`, `canOf(me)` in App.jsx): Halls `halls`, Loglar `logs`, Rapor `report`, Hesaplar `accounts`, Roller `roles` (`views/Roles.jsx`). `ctx = {me, setBack, can, sudo}`. Day page: Loglar button `logs`, hall crumb link `halls`, Holders + other-hold menu `releaseOthers`, CancelCard when `state.cancel.max > 0`, DayAdmin date `events` / prices `reprice` / delete `sudo`. Role labels via `client/src/roles.js` `roleLabel` (built-ins translated, custom = their name).
+- **Settings drawer**: without cap `backup`: theme (light/dark/system) + language only; with it: full Appearance + Yedek.
 - **Deletes**: `ui/TypedConfirm.jsx` (`typedDelete`, `TypedDeleteHost`, `DeleteButton`): type the name, red "Sil"; a 409 with `sold`
   shows a checkbox and the next submit sends `force:true`. Superuser only, on Hall / Event / Day pages.
 - **Day page (baskan)**: clicking another user's seat opens a Popover menu "Bırak"; `Holders` card ("Tutulanlar", "Hepsini bırak"
@@ -255,4 +269,5 @@ prefix and a body in `BODIES` if an allowed call would otherwise 500.
 - **Day page header**: long date h1 is `sr-only` for multi-day events (short tab label at 1.25× `--fs`). "Günü düzenle" is collapsed by default. Sell confirm: `.sell-rows` scrolls, total and buttons stay visible.
 - **SeatMap perf**: memoized `Seat` with primitive props + one delegated click on `.seatmap` (`data-id` → `byId` Map, latest
   `onSeat` via ref), so a state poll re-renders only seats whose status/label changed. verify-ui logs click→DOM medians (no assert).
-- Accounts: generated / reset passwords show once in a dialog (Kopyala). Superuser gets a per-row role Select (not on its own row) → `confirmDialog` → `PUT {role}`; başkan sees role chips.
+- Accounts: generated / reset passwords show once in a dialog (Kopyala). Rows with `canManage` (server) get a role Select listing `GET /api/roles` roles with `assignable` → `confirmDialog` → `PUT {role}`; others see a role chip.
+- **Roller** (`views/Roles.jsx`): a card per role (superuser locked "Her yetki"), cancel `Seg` + switches in 4 groups, each change = `PUT /api/roles/:key` + toast; switches for caps the caller lacks are disabled; custom roles: ✎ rename, Sil (confirm) when no accounts use it.

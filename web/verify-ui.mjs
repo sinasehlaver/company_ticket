@@ -340,6 +340,34 @@ ok((await A.page.getByRole("button", { name: "verify-kasa rolü" }).innerText())
 await N.page.reload();
 ok(await N.page.locator(".nav-tabs .tab", { hasText: "Rapor" }).first().waitFor({ timeout: 10000 }).then(() => true, () => false), "promoted user now sees Rapor");
 
+step("Roller: superuser adds a custom role, grants Loglar + own cancels, deletes it; sales has no Roller tab");
+ok(!(await S1.page.locator(".nav-tabs .tab", { hasText: "Roller" }).count()), "no Roller tab for sales");
+await A.page.goto(`${URL}/#/roles`);
+await A.page.locator('[data-role-card="superuser"]').waitFor();
+ok((await A.page.locator('[data-role-card="superuser"]').innerText()).includes("Her yetki"), "superuser card is locked");
+ok(await A.page.locator('[data-role-card="sales"] [data-cap="cancel"] [role="radio"][aria-checked="true"]').innerText() === "Kendi sattıkları", "sales default: cancel own");
+await A.page.locator(".new-role").getByLabel("Rol adı").fill("Kapı görevlisi");
+await A.page.locator(".new-role").getByRole("button", { name: "Rol ekle" }).click();
+ok(await toastHas(A.page, /Kapı görevlisi rolü eklendi/), "role created toast");
+const kapi = A.page.locator(".role-card", { hasText: "Kapı görevlisi" });
+const logsSw = kapi.locator('[data-cap="logs"] [role="switch"]');
+ok(await logsSw.getAttribute("aria-checked") === "false", "new role starts with no caps");
+await logsSw.click();
+ok(await toastHas(A.page, /Kapı görevlisi yetkileri kaydedildi/), "cap saved toast");
+await kapi.locator('[data-cap="logs"] [role="switch"][aria-checked="true"]').waitFor();
+await kapi.locator('[data-cap="cancel"]').getByRole("radio", { name: "Kendi sattıkları" }).click();
+await kapi.locator('[data-cap="cancel"] [role="radio"][aria-checked="true"]', { hasText: "Kendi sattıkları" }).waitFor();
+await shot(A.page, "desktop-light-roles");
+await A.page.reload();
+await kapi.locator('[data-cap="logs"] [role="switch"][aria-checked="true"]').waitFor();
+ok(true, "caps persisted across reload");
+await kapi.getByRole("button", { name: "Sil", exact: true }).click();
+const roleDel = A.page.locator(".dialog", { hasText: "Kapı görevlisi rolü silinsin mi?" });
+await roleDel.waitFor();
+await roleDel.getByRole("button", { name: "Sil" }).click();
+ok(await toastHas(A.page, /Kapı görevlisi rolü silindi/), "role deleted toast");
+ok(await A.page.locator(".role-card", { hasText: "Kapı görevlisi" }).count() === 0, "card gone");
+
 step("backup: sales has no Yedek section (export is başkan+)");
 await S1.page.goto(`${URL}/#/events/${eventId}`);
 await S1.page.locator(`.nav button[aria-label="Ayarlar"]`).first().click();

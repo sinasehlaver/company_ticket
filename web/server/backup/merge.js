@@ -13,15 +13,18 @@
 //   warning soldCancelledInFile for a manual cancel); file holds arrive
 //   as free (a hold is a live desk session, never restored)
 // - logs: append-only union by uid
-// - users: by username; the importer's own row is never touched ('own-account'); a başkan importer can only add or
-//   change sales accounts (mirrors in-app account rules; 'needs-superuser'); a changed hash/role/disabled kills
-//   that user's sessions; sessions are never imported
+// - roles: by key, newer wins; a non-superuser importer needs cap roles ('needs-roles') and can't touch baskan or
+//   bring caps it lacks ('needs-superuser'); superuser is never a row
+// - users: by username; the importer's own row is never touched ('own-account'); a non-superuser importer can only add
+//   or change accounts it could manage in the app (canManageRole; 'needs-superuser'); a user whose role exists in
+//   neither live nor the file is skipped ('unknown-role'); a changed hash/role/disabled kills that user's sessions;
+//   sessions are never imported
 // - any held seat in live blocks the whole import (HoldsConflict -> 409), re-checked inside the write tx
 import { DatabaseSync } from 'node:sqlite';
 import { tx, newUid } from '../db.js';
-import { ROLES } from '../auth.js';
+import { SUPER, NO_CAPS, capsFrom, capsWithin, hasCap, canManageRole } from '../roles.js';
 
-export const TABLES = ['halls', 'events', 'days', 'users', 'tickets', 'logs'];
+export const TABLES = ['halls', 'events', 'days', 'roles', 'users', 'tickets', 'logs'];
 const SYNC_TOMB = ['halls', 'events', 'days', 'tickets', 'logs'];
 const PARENT_FIRST = ['halls', 'events', 'days', 'tickets', 'logs'];
 const CHUNK = 200;
@@ -31,6 +34,7 @@ const READ = {
   halls: 'SELECT uid, name, seats, seat_plan, price_schema, updated_at FROM halls',
   events: 'SELECT e.uid, e.name, h.uid AS hall_uid, e.updated_at FROM events e LEFT JOIN halls h ON h.id = e.hall_id',
   days: 'SELECT d.uid, ev.uid AS event_uid, d.date, d.tickets_dict, d.updated_at FROM days d LEFT JOIN events ev ON ev.id = d.event_id',
+  roles: 'SELECT uid, key, name, caps, updated_at FROM roles',
   users: 'SELECT uid, username, hash, role, disabled, updated_at, created_at FROM users',
   tickets: `SELECT t.uid, d.uid AS day_uid, t.row, t.num, t.price, t.category, t.status, u.username AS owner_name, t.last_modified_by, t.updated_at
     FROM tickets t LEFT JOIN days d ON d.id = t.day_id LEFT JOIN users u ON u.id = t.owner`,
@@ -88,7 +92,8 @@ const VALID = {
   halls: (r) => str(r.uid, 100) && str(r.name, 1000) && str(r.seats) && typeof r.seat_plan === 'string' && typeof r.price_schema === 'string' && TS.test(r.updated_at),
   events: (r) => str(r.uid, 100) && str(r.name, 1000) && TS.test(r.updated_at),
   days: (r) => str(r.uid, 100) && str(r.date, 40) && typeof r.tickets_dict === 'string' && TS.test(r.updated_at),
-  users: (r) => str(r.uid, 100) && str(r.username, 150) && str(r.hash, 500) && ROLES.includes(r.role) && [0, 1].includes(Number(r.disabled)) && TS.test(r.updated_at) && str(r.created_at, 40),
+  roles: (r) => str(r.uid, 100) && typeof r.key === 'string' && /^[a-z0-9-]{1,40}$/.test(r.key) && r.key !== SUPER && str(r.name, 40) && typeof r.caps === 'string' && r.caps.length <= 2000 && TS.test(r.updated_at),
+  users: (r) => str(r.uid, 100) && str(r.username, 150) && str(r.hash, 500) && str(r.role, 64) && [0, 1].includes(Number(r.disabled)) && TS.test(r.updated_at) && str(r.created_at, 40),
   tickets: (r) => str(r.uid, 100) && str(r.row, 20) && typeof r.num === 'string' && r.num.length <= 20 && int(r.price) && int(r.category) && [0, 1, 2].includes(Number(r.status)) && typeof r.last_modified_by === 'string' && TS.test(r.updated_at),
   logs: (r) => str(r.uid, 100) && ['satış', 'satış iptal'].includes(r.action) && typeof r.username === 'string' && TS.test(r.at),
   tombstones: (r) => str(r.uid, 100) && SYNC_TOMB.includes(r.tbl) && TS.test(r.deleted_at),
@@ -109,7 +114,8 @@ export function planMerge(live, file, importer = null) {
   const warn = {};
   const del = []; const ups = []; const tombs = []; const touchedDays = new Set();
   const index = (rows, key = 'uid') => new Map(rows.map((r) => [r[key], r]));
-  const L = Object.fromEntries(TABLES.map((t) => [t, index(live[t], t === 'users' ? 'username' : 'uid')]));
+  const KEYCOL = { users: 'username', roles: 'key' };
+  const L = Object.fromEntries(TABLES.map((t) => [t, index(live[t], KEYCOL[t] ?? 'uid')]));
   const liveTomb = new Map(live.tombstones.map((r) => [`${r.tbl}:${r.uid}`, r.deleted_at]));
   const future = new Date(Date.now() + 86400000).toISOString();
 
@@ -120,7 +126,7 @@ export function planMerge(live, file, importer = null) {
     for (const r of file[t]) {
       const tbl = t === 'tombstones' ? 'tombstones' : t;
       if (!VALID[tbl](r)) { if (t !== 'tombstones') skip(t, 'invalid'); continue; }
-      const k = t === 'tombstones' ? `${r.tbl}:${r.uid}` : t === 'users' ? r.username : r.uid;
+      const k = t === 'tombstones' ? `${r.tbl}:${r.uid}` : KEYCOL[t] ? r[KEYCOL[t]] : r.uid;
       if (seen.has(k)) { if (t !== 'tombstones') skip(t, 'invalid'); continue; }
       seen.add(k); F[t].push(r);
       if (stamp(t, r) > future || (t === 'tombstones' && r.deleted_at > future)) warn.futureDates = (warn.futureDates || 0) + 1;
@@ -219,13 +225,38 @@ export function planMerge(live, file, importer = null) {
     if (did === 'updated') touchedDays.add(d.uid);
   }
 
-  // 3. users (by username)
+  // 3a. roles (by key). caps as they stand after the merge, for the users step.
+  const liveCaps = new Map([[SUPER, null], ...live.roles.map((r) => [r.key, capsFrom(r.caps)])]);
+  const finalCaps = new Map(liveCaps);
+  const icaps = importer?.caps ?? NO_CAPS;
+  const roleUids = new Set(live.roles.map((r) => r.uid));
+  for (const r of F.roles) {
+    const l = L.roles.get(r.key);
+    if (l && !(r.updated_at > l.updated_at)) { report.roles.kept++; continue; }
+    const caps = capsFrom(r.caps);
+    if (!boss && !hasCap(icaps, 'roles')) { skip('roles', 'needs-roles'); continue; }
+    if (!boss && (r.key === 'baskan' || !capsWithin(caps, icaps) || (l && !capsWithin(capsFrom(l.caps), icaps)))) { skip('roles', 'needs-superuser'); continue; }
+    if (l) {
+      ups.push({ sql: 'UPDATE roles SET name = ?, caps = ?, updated_at = ? WHERE key = ?', args: [r.name, JSON.stringify(caps), r.updated_at, r.key] });
+      report.roles.updated++;
+    } else {
+      const uid = roleUids.has(r.uid) ? newUid() : r.uid;
+      roleUids.add(uid);
+      ups.push({ sql: 'INSERT INTO roles (uid, key, name, caps, updated_at) VALUES (?, ?, ?, ?, ?)', args: [uid, r.key, r.name, JSON.stringify(caps), r.updated_at] });
+      report.roles.added++;
+    }
+    finalCaps.set(r.key, caps);
+  }
+  const manageable = (key, capsMap) => canManageRole(importer, key, capsMap.get(key) ?? NO_CAPS);
+
+  // 3b. users (by username)
   const liveUids = new Set(live.users.map((u) => u.uid));
   for (const u of F.users) {
     const l = L.users.get(u.username);
     if (importer && u.username === importer.username) { skip('users', 'own-account'); continue; }
     if (l && !(u.updated_at > l.updated_at)) { report.users.kept++; continue; }
-    if (!boss && (u.role !== 'sales' || (l && l.role !== 'sales'))) { skip('users', 'needs-superuser'); continue; }
+    if (!finalCaps.has(u.role)) { skip('users', 'unknown-role'); continue; }
+    if (!boss && (!manageable(u.role, finalCaps) || (l && !manageable(l.role, liveCaps)))) { skip('users', 'needs-superuser'); continue; }
     if (l) {
       ups.push({ sql: 'UPDATE users SET hash = ?, role = ?, disabled = ?, updated_at = ? WHERE username = ?', args: [u.hash, u.role, Number(u.disabled), u.updated_at, u.username] });
       if (u.hash !== l.hash || u.role !== l.role || Number(u.disabled) !== Number(l.disabled)) {

@@ -27,7 +27,7 @@ const POLL_MS = 3000;
 // F7-F11 the day page. One `state` object from the server drives everything; every mutation returns a fresh one.
 // Polling: GET /state?since=<version> every 3 s while the tab is visible (204 = unchanged). A poll answer is dropped
 // when a mutation's state landed after the poll was sent (mutSeq), so a slow poll can never undo a click.
-export function Day({ id, boss, sudo, setBack }) {
+export function Day({ id, can, sudo, setBack }) {
   const t = useT();
   const { lang } = usePrefs();
   const [info, setInfo] = useState(null); // {day, days}
@@ -88,16 +88,18 @@ export function Day({ id, boss, sudo, setBack }) {
   if (!info || !state) return <div className="page page-wide"><Skeleton head map /></div>;
   const { day } = info;
   const seated = day.kind === "seated";
+  const others = can("releaseOthers"); // see + release other sales points' holds
+  const admin = can("events") || can("reprice") || sudo;
   return (
     <div className="page page-wide day-page">
       <header className="view-head day-head">
         <div>
-          <p className="crumb"><a href={`#/events/${day.event.id}`}>{day.event.name}</a> · {boss ? <a href={`#/halls/${day.event.hallId}`}>{day.event.hallName}</a> : day.event.hallName}</p>
+          <p className="crumb"><a href={`#/events/${day.event.id}`}>{day.event.name}</a> · {can("halls") ? <a href={`#/halls/${day.event.hallId}`}>{day.event.hallName}</a> : day.event.hallName}</p>
           <h1 className={days.length > 1 ? "sr-only" : undefined}>{dayLabel(day.date, lang)}</h1>
         </div>
         <div className="head-chips">
           {stale && <span className="chip chip-warn" data-tip={t("staleHint")}>{t("stale")}</span>}
-          {boss && <a className="btn btn-ghost btn-sm" href={`#/logs/${day.id}`}>{t("dayLog")}</a>}
+          {can("logs") && <a className="btn btn-ghost btn-sm" href={`#/logs/${day.id}`}>{t("dayLog")}</a>}
         </div>
       </header>
       {days.length > 1 && (
@@ -108,13 +110,13 @@ export function Day({ id, boss, sudo, setBack }) {
           ))}
         </nav>
       )}
-      <Stats state={state} seated={seated} boss={boss} />
+      <Stats state={state} seated={seated} />
       {seated
-        ? <Seated day={day} state={state} setState={setState} failed={failed} boss={boss} />
+        ? <Seated day={day} state={state} setState={setState} failed={failed} boss={others} />
         : <CountHall day={day} state={state} setState={setState} failed={failed} />}
-      {boss && <Holders day={day} state={state} setState={setState} failed={failed} />}
-      {boss && state.sold?.count > 0 && <CancelCard day={day} state={state} setState={setState} failed={failed} seated={seated} />}
-      {boss && <DayAdmin key={day.id} day={day} sudo={sudo} countPrice={seated ? null : state.seats[0]?.[3]}
+      {others && <Holders day={day} state={state} setState={setState} failed={failed} />}
+      {state.cancel?.max > 0 && <CancelCard day={day} state={state} setState={setState} failed={failed} seated={seated} />}
+      {admin && <DayAdmin key={day.id} day={day} sudo={sudo} canDate={can("events")} canPrice={can("reprice")} countPrice={seated ? null : state.seats[0]?.[3]}
         onDay={(d) => { setInfo((i) => ({ day: { ...i.day, date: d.date, ticketsDict: d.ticketsDict },
           days: i.days.map((x) => (String(x.id) === String(d.id) ?{ ...x, date: d.date } : x)) })); poll(); }} />}
       <SellBar day={day} state={state} setState={setState} failed={failed} seated={seated} />
@@ -122,13 +124,13 @@ export function Day({ id, boss, sudo, setBack }) {
   );
 }
 
-function Stats({ state, seated, boss }) {
+function Stats({ state, seated }) {
   const t = useT();
   return (
     <div className="stats">
       <div className="stat"><span className="stat-n">{num(state.free)}</span><span className="stat-l">{t("statFree")}</span></div>
       <div className="stat stat-mine"><span className="stat-n">{num(state.mine.count)}</span><span className="stat-l">{t("statMine")}</span></div>
-      {boss && state.sold && <>
+      {state.sold && <>
         <div className="stat"><span className="stat-n">{num(state.sold.count)}</span><span className="stat-l">{t("statSold")}</span></div>
         <div className="stat"><span className="stat-n">{money(state.sold.revenue)}</span><span className="stat-l">{t("statRevenue")}</span></div>
       </>}
@@ -215,15 +217,15 @@ function Holders({ day, state, setState, failed }) {
   );
 }
 
-// Başkan: move the day, re-price its unsold seats; superuser: delete it (typed confirm).
-function DayAdmin({ day, sudo, onDay, countPrice }) {
+// cap events: move the day; cap reprice: re-price its unsold seats; superuser: delete it (typed confirm).
+function DayAdmin({ day, sudo, canDate, canPrice, onDay, countPrice }) {
   const t = useT();
   const { lang } = usePrefs();
   const seated = day.kind === "seated";
   const init = istanbulInput(day.date) ?? { date: "", time: "" };
   const [date, setDate] = useState(init.date);
   const [time, setTime] = useState(init.time);
-  const hall = useLoad(() => get(`/api/halls/${day.event.hallId}`), [day.event.hallId]);
+  const hall = useLoad(() => (canPrice ? get(`/api/halls/${day.event.hallId}`) : Promise.resolve(null)), [day.event.hallId, canPrice]);
   const [values, setValues] = useState(() => Object.fromEntries(Object.entries(day.ticketsDict ?? {}).map(([r, v]) => [r, String(v?.["-1"]?.[0] ?? "")])));
   const [price, setPrice] = useState(countPrice != null ? String(countPrice) : "");
   const [error, setError] = useState(null);
@@ -266,15 +268,15 @@ function DayAdmin({ day, sudo, onDay, countPrice }) {
     <section className="card form-card day-admin" data-collapsed={!open}>
       <div className="cancel-head">
         <button type="button" className="section-title" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-          <span className="chev" aria-hidden>▾</span><h2>{t("editDay")}</h2></button>
-        <span className="muted small">{t("bossOnly")}</span></div>
+          <span className="chev" aria-hidden>▾</span><h2>{t("editDay")}</h2></button></div>
       {open && <>
-      <div className="form-row">
+      {canDate && <div className="form-row">
         <div className="field-v"><span>{t("date")}</span><DatePicker label={t("date")} value={date} onChange={setDate} /></div>
         <label className="field-v"><span>{t("time")}</span>
           <input className="input input-time" type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} /></label>
         <Busy className="btn btn-soft" onClick={saveDate}>{t("saveDate")}</Busy>
-      </div>
+      </div>}
+      {canPrice && <>
       <h3 className="sub-h">{t("prices")}</h3>
       <p className="muted small">{t("repriceHint")}</p>
       {seated ? (hall.data ? <PriceEditor rows={hall.data.hall.rows} values={values} onChange={setValues} invalid={invalid} />
@@ -283,12 +285,13 @@ function DayAdmin({ day, sudo, onDay, countPrice }) {
           <span className="input-suffix"><input className="input" inputMode="numeric" value={price} aria-label={t("ticketPrice")}
             onChange={(e) => setPrice(e.target.value.replace(/\D/g, "").slice(0, 5))} /><span aria-hidden>₺</span></span></label>
       )}
+      </>}
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="form-btns">
         {sudo && <DeleteButton title={t("deleteDayTitle", { date: dayLabel(day.date, lang) })} text={t("deleteDayText")} name={confirmStamp(day.date)}
           path={`/api/days/${day.id}`} onDone={() => go(`events/${day.event.id}`)} className="btn btn-danger" />}
         <span className="spacer" />
-        <Busy onClick={savePrices}>{t("savePrices")}</Busy>
+        {canPrice && <Busy onClick={savePrices}>{t("savePrices")}</Busy>}
       </div>
       </>}
     </section>
@@ -381,16 +384,18 @@ function SellBar({ day, state, setState, failed, seated }) {
   );
 }
 
-// F10 başkan: cancel sold seats ("a-32, b-25") or N tickets on a count hall. Live preview, confirm (red "İptal et").
+// F10, cap cancel (own = only seats this user sold; the server checks): cancel sold seats ("a-32, b-25") or N tickets on a count hall. Live preview, confirm (red "İptal et").
 function CancelCard({ day, state, setState, failed, seated }) {
   const t = useT();
   const [text, setText] = useState("");
   const [error, setError] = useState(null);
   const preview = seated ? cancelPreview(text) : null;
-  const n = seated ? null : cancelCount(text, state.sold.count);
+  const max = state.cancel.max;
+  const own = state.cancel.mode === "own";
+  const n = seated ? null : cancelCount(text, max);
   const submit = async () => {
     setError(null);
-    if (!text.trim()) { setError(seated ? t("cancelEmpty") : t("cancelCountBad", { max: state.sold.count })); return false; }
+    if (!text.trim()) { setError(seated ? t("cancelEmpty") : t("cancelCountBad", { max })); return false; }
     // Malformed input can't cancel anything (the server is all-or-nothing), so it goes straight to the server for its
     // grouped message; a well-formed list is confirmed first.
     const wellFormed = seated ? preview.ok : n != null;
@@ -409,7 +414,7 @@ function CancelCard({ day, state, setState, failed, seated }) {
   };
   return (
     <section className="card cancel-card">
-      <div className="cancel-head"><h2>{t("cancelSale")}</h2><span className="muted small">{t("bossOnly")}</span></div>
+      <div className="cancel-head"><h2>{t("cancelSale")}</h2>{own && <span className="muted small">{t("cancelOwnOnly")}</span>}</div>
       <form className="cancel-form" onSubmit={(e) => e.preventDefault()}>
         {seated
           ? <textarea className="input mono textarea" rows={2} placeholder="a-32, b-25" value={text} spellCheck={false} aria-label={t("cancelSale")}
@@ -425,9 +430,9 @@ function CancelCard({ day, state, setState, failed, seated }) {
           {preview.dup.map((s) => <li key={`d${s}`} className="chip chip-warn">{t("dupItem", { seat: s })}</li>)}
         </ul>
       )}
-      {!seated && text.trim() && n == null && <p className="muted small">{t("cancelCountBad", { max: state.sold.count })}</p>}
+      {!seated && text.trim() && n == null && <p className="muted small">{t("cancelCountBad", { max })}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <p className="muted small">{seated ? t("cancelHint") : t("cancelCountHint", { max: state.sold.count })}</p>
+      <p className="muted small">{seated ? t("cancelHint") : t("cancelCountHint", { max })}</p>
     </section>
   );
 }

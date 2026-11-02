@@ -10,7 +10,7 @@ import { openDb, migrate } from '../db.js';
 import { IST_OFFSET_MIN } from '../seats.js';
 
 /** Parent-first: inserts into the export respect the FK order. */
-export const EXPORT_TABLES = ['halls', 'events', 'days', 'users', 'tickets', 'logs', 'tombstones', 'audit'];
+export const EXPORT_TABLES = ['halls', 'events', 'days', 'roles', 'users', 'tickets', 'logs', 'tombstones', 'audit'];
 const CHUNK = 300;
 
 async function columnsOf(exec, table) {
@@ -33,6 +33,7 @@ export async function exportTo(db, path) {
       }
     } finally { t.close(); }
     for (const [table, srcCols, rows] of data) {
+      if (table === 'roles') await out.execute('DELETE FROM roles'); // migrate() seeded the built-ins; the source's rows replace them
       // Only columns both sides have: a source on an older schema still exports (new columns take their defaults).
       const want = new Set(await columnsOf(out, table));
       const idx = srcCols.map((c, i) => [c, i]).filter(([c]) => want.has(c));

@@ -1,13 +1,25 @@
-// Walks the central route table for anon / sales / baskan / superuser and asserts 401/403 vs allowed.
+// Walks the central route table for anon / sales / baskan / superuser / a custom role and asserts 401/403 vs allowed.
+// Expected caps per identity are spelled out here (not read from the DB), so a wrong default or a wrong route cap fails.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeApp } from './test-helpers.js';
 import { ROUTES } from './routes/index.js';
-import { RANK } from './auth.js';
+import { CAP_KEYS } from './roles.js';
+
+const DOOR = { cancel: 'off', releaseOthers: false, events: false, reprice: false, halls: false, logs: true, report: true, accounts: false, backup: false, roles: false };
+const EXPECT = {
+  sales: { cancel: 'own' },
+  baskan: Object.fromEntries(CAP_KEYS.map((k) => [k, k === 'cancel' ? 'any' : true])),
+  superuser: Object.fromEntries(CAP_KEYS.map((k) => [k, k === 'cancel' ? 'any' : true])),
+  'r-kapi': DOOR,
+};
+const has = (who, cap) => (cap === 'cancel' ? (EXPECT[who].cancel ?? 'off') !== 'off' : EXPECT[who][cap] === true);
+const allowed = (who, cap) => cap === 'login' || (cap === 'superuser' ? who === 'superuser' : [].concat(cap).some((c) => has(who, c)));
 
 let t, ids;
 before(async () => {
   t = await makeApp();
+  await t.db.execute({ sql: "INSERT INTO roles (uid, key, name, caps, updated_at) VALUES ('u-kapi', 'r-kapi', 'Kapı görevlisi', ?, '2026-01-01T00:00:00.000Z')", args: [JSON.stringify(DOOR)] });
   const hall = await t.seedHall({ name: 'H', seats: { count: 3 }, priceSchema: '5' });
   const event = await t.seedEvent(hall);
   const d = await t.db.execute({ sql: "INSERT INTO days (uid, event_id, date, tickets_dict, updated_at) VALUES ('d1', ?, '2026-11-01T17:00:00.000Z', '{}', '2026-01-01T00:00:00.000Z')", args: [event] });
@@ -20,6 +32,7 @@ function concrete(path) {
   if (path.startsWith('/api/events/')) return path.replace(':id', ids.event);
   if (path.startsWith('/api/days/')) return path.replace(':id', ids.day);
   if (path.startsWith('/api/users/')) return path.replace(':id', ids.user);
+  if (path.startsWith('/api/roles/')) return path.replace(':key', 'r-kapi'); // has accounts: DELETE -> 409, PUT {} -> 400
   if (path.startsWith('/api/backup/snapshots/')) return path.replace(':id', '424242'); // none: 404 / typed-confirm 400
   assert.ok(!path.includes(':'), `no id mapping for ${path}`);
   return path;
@@ -31,20 +44,30 @@ test('route table is complete and sane', () => {
   assert.ok(ROUTES.length >= 15);
   const keys = ROUTES.map((r) => `${r.method} ${r.path}`);
   assert.equal(new Set(keys).size, keys.length, 'duplicate route');
-  const pub = ROUTES.filter((r) => !r.minRole).map((r) => `${r.method} ${r.path}`).sort();
+  const pub = ROUTES.filter((r) => !r.cap).map((r) => `${r.method} ${r.path}`).sort();
   assert.deepEqual(pub, ['GET /healthz', 'POST /api/login'], 'only healthz and login are public');
-  for (const r of ROUTES) if (r.minRole) assert.ok(RANK[r.minRole], `${r.path} has a valid role`);
+  for (const r of ROUTES) if (r.cap) for (const c of [].concat(r.cap)) assert.ok(c === 'login' || c === 'superuser' || CAP_KEYS.includes(c), `${r.path} has a valid cap (${c})`);
+  // the superuser-only set never becomes a toggle
+  const sup = ROUTES.filter((r) => r.cap === 'superuser').map((r) => `${r.method} ${r.path}`).sort();
+  assert.deepEqual(sup, ['DELETE /api/days/:id', 'DELETE /api/events/:id', 'DELETE /api/halls/:id', 'POST /api/backup/snapshots/:id/restore']);
 });
 
-for (const who of ['anon', 'sales', 'baskan', 'superuser']) {
+test('/api/me carries the caller\'s caps (custom role)', async () => {
+  const c = await t.login('r-kapi', 'kapi-me');
+  const me = (await c.get('/api/me')).body.user;
+  assert.deepEqual(me.caps, DOOR);
+  assert.equal(me.roleName, 'Kapı görevlisi');
+});
+
+for (const who of ['anon', 'sales', 'baskan', 'superuser', 'r-kapi']) {
   test(`authz matrix: ${who}`, async () => {
     for (const r of ROUTES) {
       const c = who === 'anon' ? t.client() : await t.login(who, `${who}-mx`); // fresh session per route (logout kills it)
       const res = await c.request(r.method, concrete(r.path), r.method === 'GET' ? undefined : (BODIES[`${r.method} ${r.path}`] ?? {}));
       const label = `${who} ${r.method} ${r.path} -> ${res.status} ${JSON.stringify(res.body)}`;
-      if (!r.minRole) assert.ok(![401, 403].includes(res.status), label);
+      if (!r.cap) assert.ok(![401, 403].includes(res.status), label);
       else if (who === 'anon') assert.equal(res.status, 401, label);
-      else if (RANK[who] < RANK[r.minRole]) assert.equal(res.status, 403, label);
+      else if (!allowed(who, r.cap)) assert.equal(res.status, 403, label);
       else assert.ok(![401, 403].includes(res.status) && res.status < 500, label);
       if (res.status >= 400) assert.equal(typeof res.body.error, 'string', label);
     }

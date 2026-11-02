@@ -16,16 +16,16 @@ async function eventWithDays(db, id) {
 }
 
 export default function eventRoutes(route) {
-  route('GET', '/api/events', 'sales', async (req, res, { db }) => {
+  route('GET', '/api/events', 'login', async (req, res, { db }) => {
     const r = await db.execute(`SELECT e.id, e.uid, e.name, e.hall_id, e.updated_at, h.name AS hall_name,
       (SELECT COUNT(*) FROM days d WHERE d.event_id = e.id) AS day_count, (SELECT MIN(date) FROM days d WHERE d.event_id = e.id) AS first_date
       FROM events e JOIN halls h ON h.id = e.hall_id ORDER BY e.id DESC`);
     return { events: r.rows.map((e) => ({ ...eventOut(e), dayCount: Number(e.day_count), firstDate: e.first_date })) };
   });
 
-  route('GET', '/api/events/:id', 'sales', (req, res, { db }) => eventWithDays(db, req.params.id));
+  route('GET', '/api/events/:id', 'login', (req, res, { db }) => eventWithDays(db, req.params.id));
 
-  route('POST', '/api/events', 'baskan', async (req, res, { db }) => {
+  route('POST', '/api/events', 'events', async (req, res, { db }) => {
     const name = nameFrom(req.body, 'Etkinlik adı');
     const raw = req.body?.hallId;
     const hallId = typeof raw === 'number' || (typeof raw === 'string' && /^\d{1,15}$/.test(raw)) ? Number(raw) : NaN;
@@ -39,7 +39,7 @@ export default function eventRoutes(route) {
     return eventWithDays(db, id);
   });
 
-  route('PUT', '/api/events/:id', 'baskan', async (req, res, { db }) => {
+  route('PUT', '/api/events/:id', 'events', async (req, res, { db }) => {
     const e = await getEvent(db, req.params.id);
     const name = nameFrom(req.body, 'Etkinlik adı');
     await db.execute({ sql: 'UPDATE events SET name = ?, updated_at = ? WHERE id = ?', args: [name, now(), e.id] });
@@ -48,7 +48,7 @@ export default function eventRoutes(route) {
   });
 
   // Port of views.create_day: body {date:'YYYY-MM-DDTHH:MM' (Istanbul), prices:{row:price} | price, remember}.
-  route('POST', '/api/events/:id/days', 'baskan', async (req, res, { db }) => {
+  route('POST', '/api/events/:id/days', 'events', async (req, res, { db }) => {
     const e = await getEvent(db, req.params.id);
     const hall = await getHall(db, e.hall_id);
     const dayId = await createDay(db, e, hall, req.body ?? {});
@@ -58,7 +58,7 @@ export default function eventRoutes(route) {
     return { day: dayOut(d) };
   });
 
-  route('PUT', '/api/days/:id', 'baskan', async (req, res, { db }) => {
+  route('PUT', '/api/days/:id', 'events', async (req, res, { db }) => {
     const d = await one(db, 'SELECT id, date FROM days WHERE id = ?', [req.params.id], 'Gün bulunamadı');
     const date = istanbulToUtc(req.body?.date);
     if (!date) throw httpError(400, 'Geçerli bir tarih ve saat girin');
@@ -77,11 +77,11 @@ export default function eventRoutes(route) {
     const d = await one(db, 'SELECT d.id, e.hall_id FROM days d JOIN events e ON e.id = d.event_id WHERE d.id = ?', [id], 'Gün bulunamadı');
     return [Number(d.id), await getHall(db, d.hall_id)];
   };
-  route('POST', '/api/days/:id/prices/preview', 'baskan', async (req, res, { db }) => {
+  route('POST', '/api/days/:id/prices/preview', 'reprice', async (req, res, { db }) => {
     const [id, hall] = await dayHall(db, req.params.id);
     return (await repriceDay(db, id, hall, req.body, { dryRun: true })).preview;
   });
-  route('PUT', '/api/days/:id/prices', 'baskan', async (req, res, { db }) => {
+  route('PUT', '/api/days/:id/prices', 'reprice', async (req, res, { db }) => {
     const [id, hall] = await dayHall(db, req.params.id);
     const { changed, schema, preview, held, sold } = await repriceDay(db, id, hall, req.body);
     await audit(db, req.user.username, 'day.reprice', { id, schema, changed, counts: preview, held, sold });

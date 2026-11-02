@@ -27,7 +27,8 @@ describe('auth', () => {
     const c = t.client();
     const r = await c.post('/api/login', { username: 'carsi', password: PASSWORD });
     assert.equal(r.status, 200);
-    assert.deepEqual(Object.keys(r.body.user).sort(), ['id', 'role', 'username']);
+    assert.deepEqual(Object.keys(r.body.user).sort(), ['caps', 'id', 'role', 'roleName', 'username']);
+    assert.deepEqual(r.body.user.caps, { cancel: 'own', releaseOthers: false, events: false, reprice: false, halls: false, logs: false, report: false, accounts: false, backup: false, roles: false });
     const sc = r.headers.getSetCookie().join('\n');
     assert.match(sc, /ct_sid=[^;]+; Path=\/; HttpOnly; SameSite=Lax/);
     assert.doesNotMatch(sc, /Secure/);

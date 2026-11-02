@@ -38,14 +38,14 @@ function seatPlanFrom(body) {
 }
 
 export default function hallRoutes(route) {
-  route('GET', '/api/halls', 'baskan', async (req, res, { db }) => {
+  route('GET', '/api/halls', ['halls', 'events'], async (req, res, { db }) => {
     const r = await db.execute(`SELECT ${HALL_COLS} FROM halls ORDER BY name, id`);
     return { halls: r.rows.map((h) => { const o = hallOut(h); return { id: o.id, name: o.name, kind: o.kind, seatCount: o.seatCount, priceSchema: o.priceSchema }; }) };
   });
 
-  route('GET', '/api/halls/:id', 'sales', async (req, res, { db }) => ({ hall: hallOut(await getHall(db, req.params.id)) }));
+  route('GET', '/api/halls/:id', 'login', async (req, res, { db }) => ({ hall: hallOut(await getHall(db, req.params.id)) }));
 
-  route('POST', '/api/halls', 'baskan', async (req, res, { db }) => {
+  route('POST', '/api/halls', 'halls', async (req, res, { db }) => {
     const body = req.body ?? {};
     const name = nameFrom(body, 'Salon adı');
     const seats = validateSeats(body.seats);
@@ -60,7 +60,7 @@ export default function hallRoutes(route) {
     return { hall: hallOut(await getHall(db, id)) };
   });
 
-  route('PUT', '/api/halls/:id', 'baskan', async (req, res, { db }) => {
+  route('PUT', '/api/halls/:id', 'halls', async (req, res, { db }) => {
     const hall = await getHall(db, req.params.id);
     const name = nameFrom(req.body, 'Salon adı');
     await db.execute({ sql: 'UPDATE halls SET name = ?, updated_at = ? WHERE id = ?', args: [name, now(), hall.id] });
@@ -69,7 +69,7 @@ export default function hallRoutes(route) {
   });
 
   // Port of views.hall_prices. Seated: {prices:{row:price}} (every row); count hall: {price}.
-  route('PUT', '/api/halls/:id/prices', 'baskan', async (req, res, { db }) => {
+  route('PUT', '/api/halls/:id/prices', 'halls', async (req, res, { db }) => {
     const hall = await getHall(db, req.params.id);
     let schema;
     try { ({ schema } = readPrices({ seats: hall.seats }, req.body)); } catch (e) {

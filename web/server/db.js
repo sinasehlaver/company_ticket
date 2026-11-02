@@ -4,6 +4,7 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { seedRolesSql } from './roles.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +17,32 @@ export const MIGRATIONS = [
   { version: 3, sql: 'CREATE TABLE IF NOT EXISTS user_logins (user_id INTEGER PRIMARY KEY, at TEXT NOT NULL)' },
   // Why a snapshot was taken ('import' | 'restore' | 'cli'); snapshots themselves are never exported.
   { version: 4, sql: "ALTER TABLE snapshots ADD COLUMN reason TEXT NOT NULL DEFAULT ''" },
+  // Roles as data (docs/ROLES_PLAN.md): users.role loses its CHECK (custom role keys), + roles table with the built-ins.
+  // SQLite can't drop a CHECK: rebuild the table. fkOff = run with foreign_keys OFF around an explicit transaction
+  // (sessions/tickets reference users; any in-transaction trick fails the FK check on DROP).
+  { version: 5, fkOff: true, sql: `CREATE TABLE users_new (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT NOT NULL UNIQUE,
+  username TEXT NOT NULL UNIQUE,
+  hash TEXT NOT NULL,
+  role TEXT NOT NULL,
+  disabled INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+INSERT INTO users_new (id, uid, username, hash, role, disabled, updated_at, created_at) SELECT id, uid, username, hash, role, disabled, updated_at, created_at FROM users;
+DROP TABLE users;
+ALTER TABLE users_new RENAME TO users;
+CREATE TABLE IF NOT EXISTS roles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT NOT NULL UNIQUE,
+  key TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  caps TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL
+);
+${seedRolesSql()};
+` },
 ];
 export const SCHEMA_VERSION = MIGRATIONS.at(-1).version;
 
@@ -97,6 +124,19 @@ export async function migrate(db) {
   if (current > SCHEMA_VERSION) throw new Error(`DB schema ${current} is newer than this server (${SCHEMA_VERSION})`);
   for (const m of MIGRATIONS) {
     if (m.version <= current) continue;
+    if (m.fkOff) {
+      // one connection/stream: PRAGMA foreign_keys is a no-op inside a transaction, so it wraps BEGIN..COMMIT
+      const body = [...splitSql(m.sql), `INSERT INTO meta (key, value) VALUES ('schema_version', '${m.version}') ON CONFLICT(key) DO UPDATE SET value = excluded.value`];
+      try {
+        await db.executeMultiple(`PRAGMA foreign_keys = OFF;\nBEGIN;\n${body.join(';\n')};\nCOMMIT;\nPRAGMA foreign_keys = ON;`);
+      } catch (e) {
+        try { await db.executeMultiple('ROLLBACK;\nPRAGMA foreign_keys = ON;'); } catch { /* nothing open */ }
+        throw e;
+      }
+      const bad = await db.execute('PRAGMA foreign_key_check');
+      if (bad.rows.length) throw new Error(`migration ${m.version}: foreign key check failed`);
+      continue;
+    }
     await db.batch([
       ...splitSql(m.sql),
       { sql: "INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", args: [String(m.version)] },
