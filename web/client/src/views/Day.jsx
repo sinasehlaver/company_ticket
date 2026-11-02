@@ -21,6 +21,7 @@ import { cancelCount, cancelPreview } from "../cancel.js";
 import { isPrice, missingRows, pricesBody } from "../prices.js";
 import { Legend, SeatMap } from "./SeatMap.jsx";
 import { PriceEditor } from "./PriceEditor.jsx";
+import { CancelBar, MoveDialog, cancelSeats } from "./CancelMode.jsx";
 
 const POLL_MS = 3000;
 
@@ -34,6 +35,8 @@ export function Day({ id, can, sudo, setBack }) {
   const [state, setStateRaw] = useState(null);
   const [error, setError] = useState(null);
   const [stale, setStale] = useState(false);
+  const [cancelMode, setCancelMode] = useState(false); // "Bilet İptali": multi-select sold seats to cancel
+  const [picked, setPicked] = useState(() => new Set());
   const stateRef = useRef(null);
   const mutSeq = useRef(0);
   const setState = useCallback((s, fromMutation = true) => {
@@ -47,7 +50,7 @@ export function Day({ id, can, sudo, setBack }) {
     setError(null);
     get(`/api/days/${id}`).then((r) => { setInfo({ day: r.day, days: r.days }); setState(r.state); setStale(false); }, setError);
   }, [id, setState]);
-  useEffect(() => { setInfo(null); setStateRaw(null); stateRef.current = null; load(); }, [load]);
+  useEffect(() => { setCancelMode(false); setPicked(new Set()); setInfo(null); setStateRaw(null); stateRef.current = null; load(); }, [load]);
   useEffect(() => { if (info) setBack?.(`events/${info.day.event.id}`); }, [info, setBack]);
 
   // polling
@@ -112,14 +115,17 @@ export function Day({ id, can, sudo, setBack }) {
       )}
       <Stats state={state} seated={seated} />
       {seated
-        ? <Seated day={day} state={state} setState={setState} failed={failed} boss={others} />
+        ? <Seated day={day} state={state} setState={setState} failed={failed} boss={others}
+          cancelMode={cancelMode} setCancelMode={setCancelMode} picked={picked} setPicked={setPicked} />
         : <CountHall day={day} state={state} setState={setState} failed={failed} />}
       {others && <Holders day={day} state={state} setState={setState} failed={failed} />}
       {state.cancel?.max > 0 && <CancelCard day={day} state={state} setState={setState} failed={failed} seated={seated} />}
       {admin && <DayAdmin key={day.id} day={day} sudo={sudo} canDate={can("events")} canPrice={can("reprice")} countPrice={seated ? null : state.seats[0]?.[3]}
         onDay={(d) => { setInfo((i) => ({ day: { ...i.day, date: d.date, ticketsDict: d.ticketsDict },
           days: i.days.map((x) => (String(x.id) === String(d.id) ?{ ...x, date: d.date } : x)) })); poll(); }} />}
-      <SellBar day={day} state={state} setState={setState} failed={failed} seated={seated} />
+      {cancelMode
+        ? <CancelBar day={day} state={state} setState={setState} failed={failed} picked={picked} setPicked={setPicked} exit={() => setCancelMode(false)} />
+        : <SellBar day={day} state={state} setState={setState} failed={failed} seated={seated} />}
     </div>
   );
 }
@@ -139,7 +145,7 @@ function Stats({ state, seated }) {
   );
 }
 
-function Seated({ day, state, setState, failed, boss }) {
+function Seated({ day, state, setState, failed, boss, cancelMode, setCancelMode, picked, setPicked }) {
   const t = useT();
   const bands = useMemo(() => bandsFromDict(day.ticketsDict), [day.ticketsDict]);
   const layout = useMemo(() => buildLayout(day.seats, bands, state.seats), [day.seats, bands, state.seats]);
@@ -148,6 +154,21 @@ function Seated({ day, state, setState, failed, boss }) {
   const [pending, setPending] = useState(() => new Set());
   const [menu, setMenu] = useState(null); // başkan: {anchor, id, name, holder} for another user's hold
   const closeMenu = useCallback(() => setMenu(null), []);
+  const [sale, setSale] = useState(null); // right-click menu on a sold seat: {anchor, s: tuple}
+  const [moving, setMoving] = useState(null); // edit pane: {id, name, price}
+  const canCancel = !!state.cancel;
+  useEffect(() => {
+    if (!cancelMode) return undefined;
+    const k = (e) => { if (e.key === "Escape" && !document.querySelector(".overlay")) setCancelMode(false); };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [cancelMode, setCancelMode]);
+  const tuple = (id) => state.seats.find((x) => x[0] === id);
+  const onSeatMenu = (c, r, el) => {
+    if (cancelMode || c.status !== "sold" || !c.cx) return false;
+    setSale({ anchor: el, id: c.id });
+    return true;
+  };
   const release = async (m) => {
     try {
       const r = await post(`/api/days/${day.id}/release`, { ticketId: m.id });
@@ -157,6 +178,11 @@ function Seated({ day, state, setState, failed, boss }) {
   };
   const onSeat = async (c, r, el) => {
     const name = seatLabel(r.row, c.num);
+    if (cancelMode) {
+      if (c.status === "sold" && c.cx) setPicked((p) => { const n = new Set(p); if (!n.delete(c.id)) n.add(c.id); return n; });
+      else toast(c.status === "sold" ? t("notYourSale", { seat: name }) : t("notSold", { seat: name }));
+      return;
+    }
     if (c.status === "sold") { toast(t("seatSold", { seat: name })); return; }
     if (c.status === "other" && boss) { setMenu({ anchor: el, id: c.id, name, holder: c.holder ?? "?" }); return; }
     if (c.status === "other") { toast(t("seatTaken", { seat: name })); return; }
@@ -170,20 +196,35 @@ function Seated({ day, state, setState, failed, boss }) {
     }
   };
   return (
-    <section className="card map-card">
+    <section className="card map-card" data-mode={cancelMode ? "cancel" : undefined}>
+      {cancelMode && <p className="cancel-banner">⚠ {t("cancelModeBanner")}</p>}
       <div className="map-tools">
         <Legend counts={counts} boss={boss} />
         <span className="spacer" />
+        {canCancel && (
+          <button className="btn btn-sm btn-cancel-mode" aria-pressed={cancelMode} data-tip={cancelMode ? t("cancelModeExitHint") : t("cancelModeHint")}
+            onClick={() => { setCancelMode((m) => !m); setPicked(new Set()); }}>{cancelMode ? t("cancelModeExit") : t("cancelTickets")}</button>
+        )}
         <button className="btn btn-soft btn-sm" aria-pressed={fit} onClick={() => setFit((f) => !f)} data-tip={fit ? t("realSizeHint") : t("fitHint")}>
           {fit ? t("realSize") : t("fit")}</button>
       </div>
-      <SeatMap layout={layout} onSeat={onSeat} boss={boss} fit={fit} pending={pending} />
+      <SeatMap layout={layout} onSeat={onSeat} onSeatMenu={onSeatMenu} boss={boss} fit={fit} pending={pending} picked={picked} mode={cancelMode ? "cancel" : undefined} />
       <Popover open={!!menu} anchor={menu?.anchor} onClose={closeMenu}>
         {menu && <>
           <p className="menu-title">{t("seatHeldBy", { seat: menu.name, name: menu.holder })}</p>
           <Menu onClose={closeMenu} items={[{ id: "release", label: t("releaseHold"), danger: true, run: () => release(menu) }]} />
         </>}
       </Popover>
+      <Popover open={!!sale} anchor={sale?.anchor} onClose={() => setSale(null)}>
+        {sale && (() => { const s = tuple(sale.id); if (!s) return null; const name = seatLabel(s[1], s[2]); return <>
+          <p className="menu-title">{t("soldSeatTitle", { seat: name, price: money(s[3]) })}</p>
+          <Menu onClose={() => setSale(null)} items={[
+            { id: "edit", label: t("editSale"), run: () => setMoving({ id: s[0], name, price: s[3] }) },
+            { id: "cancel", label: t("cancelThisSale"), danger: true, run: () => cancelSeats({ t, day, list: [s], setState, failed }) },
+          ]} />
+        </>; })()}
+      </Popover>
+      {moving && <MoveDialog day={day} seat={moving} onClose={() => setMoving(null)} setState={setState} failed={failed} />}
     </section>
   );
 }

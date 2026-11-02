@@ -1,5 +1,5 @@
 // Day page + reservation + logs (F7-F12). Conflicts -> 409 {error, state}.
-import { loadDay, siblingDays, dayState, dayVersion, toggleSeat, countHold, countRelease, sell, cancel, releaseHold, dayLogs, Conflict } from '../reserve.js';
+import { loadDay, siblingDays, dayState, dayVersion, toggleSeat, countHold, countRelease, sell, cancel, moveTicket, releaseHold, dayLogs, Conflict } from '../reserve.js';
 
 /** Runs fn; on Conflict answers 409 {error, state}; otherwise returns {...result, state}. */
 async function withState(req, res, db, fn) {
@@ -49,6 +49,9 @@ export default function dayRoutes(route) {
 
   route('POST', '/api/days/:id/cancel', 'cancel', (req, res, { db }) =>
     withState(req, res, db, (day) => cancel(db, day, req.user, req.body)));
+
+  route('POST', '/api/days/:id/move', 'cancel', (req, res, { db }) =>
+    withState(req, res, db, (day) => moveTicket(db, day, req.user, req.body)));
 
   route('POST', '/api/days/:id/release', 'releaseOthers', (req, res, { db }) =>
     withState(req, res, db, (day) => releaseHold(db, day, req.user, req.body)));

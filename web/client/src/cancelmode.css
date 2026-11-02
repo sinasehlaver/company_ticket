@@ -1,0 +1,20 @@
+/* "Bilet İptali" mode: the whole map turns red-pink, selectable (sold + cancellable) seats pulse dotted, the rest dims. */
+.btn-cancel-mode { border: 2px dotted #e0446f; background: color-mix(in srgb, #ff7aa2 16%, transparent); color: #c0153f; font-weight: 600; }
+.btn-cancel-mode[aria-pressed="true"] { background: #e0446f; color: #fff; border-style: solid; }
+:root[data-theme="dark"] .btn-cancel-mode:not([aria-pressed="true"]) { color: #ff9db8; }
+.map-card[data-mode="cancel"] { border: 2px dashed #e0446f; background: color-mix(in srgb, #ff7aa2 7%, var(--surface)); }
+.cancel-banner { margin: 0 0 var(--s3); padding: var(--s2) var(--s3); border-radius: var(--r2, 8px); background: #e0446f; color: #fff; font-weight: 700; letter-spacing: .02em; }
+.seatmap[data-mode="cancel"] .seat:not([data-cx]) { opacity: .28; filter: grayscale(.8); cursor: not-allowed; }
+.seatmap[data-mode="cancel"] .seat[data-cx] { cursor: pointer; outline: 2px dotted #e0446f; outline-offset: 1px; }
+.seatmap[data-mode="cancel"] .seat[data-picked] { background: #ff2d6a; color: #fff; outline: 2px solid #fff; box-shadow: 0 0 0 4px #e0446f; transform: scale(1.1); }
+.seatmap[data-mode="cancel"] .seat[data-picked]::after { content: "✕"; position: absolute; font-size: 9px; transform: translate(9px, -9px); }
+.seat { position: relative; }
+.cancelbar .sellbar-in { border: 2px dashed #e0446f; }
+.cancel-refund b, .cancel-danger { color: var(--danger); }
+.cancel-danger { display: block; margin-top: var(--s2); font-weight: 600; }
+.move-dialog { width: min(920px, 96vw); max-height: 92vh; overflow: auto; }
+.move-pickers { display: flex; gap: var(--s3); flex-wrap: wrap; margin: var(--s3) 0; }
+.move-pickers label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; }
+.move-map { max-height: 46vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--r2, 8px); padding: var(--s2); }
+.move-sum { display: flex; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; margin: var(--s3) 0; padding: var(--s2) var(--s3); border-radius: var(--r2, 8px); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.move-sum[data-kind="refund"] .move-delta { color: var(--danger); }

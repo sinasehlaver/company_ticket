@@ -23,3 +23,15 @@ export function cancelCount(text, sold) {
   const n = Number(text);
   return n >= 1 && n <= sold ? n : null;
 }
+
+/** Sum of the prices of the picked sold seats (state.seats tuples: [id,row,num,price,…,cx]) that this user may still cancel. */
+export function pickedSeats(seats, picked) {
+  return seats.filter((s) => picked.has(s[0]) && s[8] === true);
+}
+export const refundTotal = (list) => list.reduce((n, s) => n + s[3], 0);
+
+/** Edit-a-sale price difference: customer pays the extra, or gets the rest back. */
+export function moveQuote(oldPrice, newPrice) {
+  const delta = newPrice - oldPrice;
+  return { delta, kind: delta > 0 ? "pay" : delta < 0 ? "refund" : "even", amount: Math.abs(delta) };
+}

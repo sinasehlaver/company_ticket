@@ -21,3 +21,16 @@ test("cancelCount: 1..sold integers only", () => {
   assert.equal(cancelCount("2.5", 5), null);
   assert.equal(cancelCount("x", 5), null);
 });
+
+import { moveQuote, pickedSeats, refundTotal } from "./cancel.js";
+test("moveQuote: pay / refund / even", () => {
+  assert.deepEqual(moveQuote(60, 75), { delta: 15, kind: "pay", amount: 15 });
+  assert.deepEqual(moveQuote(75, 60), { delta: -15, kind: "refund", amount: 15 });
+  assert.equal(moveQuote(50, 50).kind, "even");
+});
+test("pickedSeats keeps only cancellable picked seats; refundTotal sums them", () => {
+  const seats = [[1, "a", "1", 75, 1, 2, false, null, true], [2, "a", "2", 60, 1, 2, false, null, false], [3, "a", "3", 50, 1, 2, false, null, true]];
+  const l = pickedSeats(seats, new Set([1, 2]));
+  assert.deepEqual(l.map((s) => s[0]), [1]);
+  assert.equal(refundTotal(l), 75);
+});

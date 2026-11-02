@@ -6,6 +6,7 @@ import { setupLook } from "look/kit/setup.js";
 import "look/tokens.css";
 import "look/kit.css";
 import "./app.css";
+import "./cancelmode.css";
 
 // tokens + kit + Settings → Appearance come from the shared `look` package (live ../../../_look or vendor/look)
 setupLook(config, dict);

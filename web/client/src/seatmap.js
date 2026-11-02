@@ -40,7 +40,7 @@ export function buildLayout(all, bands = {}, seats = null) {
         count++;
         const s = byKey.get(`${row}-${num}`);
         if (!s) return { id: null, num, status: seats ? "missing" : "free", holder: null, price: bands[row]?.price ?? null };
-        return { id: s[0], num, status: seatStatus(s[5], s[6]), holder: s[7] ?? null, price: s[3] };
+        return { id: s[0], num, status: seatStatus(s[5], s[6]), holder: s[7] ?? null, price: s[3], cx: s[8] === true };
       });
       width = Math.max(width, cells.length);
       const b = bands[row] ?? {};

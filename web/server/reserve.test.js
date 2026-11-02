@@ -195,6 +195,31 @@ describe('seated day', () => {
     assert.equal((await cancel({ tickets: 'a-3' })).status, 200);
   });
 
+  test('move (edit a sale): new seat sold with its price, old freed, delta, own-only, conflicts, logged', async () => {
+    const [a1] = await sold(['a', '1']); // 75, sold by satis1
+    const b2 = await tid('b', '2'); // 60
+    const mv = (body, c = boss) => c.post(`/api/days/${day}/move`, { toDayId: day, ...body });
+    assert.equal((await s2.post(`/api/days/${day}/move`, { ticketId: a1, toDayId: day, toTicketId: b2 })).status, 403);
+    assert.equal((await mv({ ticketId: a1, toTicketId: a1 })).status, 400);
+    assert.equal((await mv({ ticketId: a1, toTicketId: 'x' })).status, 400);
+    assert.equal((await mv({ ticketId: b2, toTicketId: a1 })).status, 409); // b2 isn't sold
+    const r = await mv({ ticketId: a1, toTicketId: b2 });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.delta, -15);
+    assert.deepEqual(r.body.from, { row: 'a', num: '1', price: 75 });
+    assert.equal(Number((await ticket(a1)).status), 0);
+    const nb = await ticket(b2);
+    assert.equal(Number(nb.status), 2);
+    assert.equal(nb.last_modified_by, 'baskan');
+    assert.equal(await logs('satış iptal'), 1);
+    assert.equal(await t.count("SELECT COUNT(*) AS n FROM audit WHERE action = 'sale.move'"), 1);
+    assert.equal((await mv({ ticketId: a1, toTicketId: b2 })).status, 409);
+    // own: seller keeps the right on the moved ticket (owner stays the seller), others get 403
+    assert.equal((await s2.post(`/api/days/${day}/move`, { ticketId: b2, toDayId: day, toTicketId: a1 })).status, 403);
+    assert.equal((await s1.post(`/api/days/${day}/move`, { ticketId: b2, toDayId: day, toTicketId: a1 })).status, 200);
+    assert.equal(await t.count('SELECT COUNT(*) AS n FROM tickets WHERE status = 2'), 1);
+  });
+
   test('cancel off (custom role) -> 403 at the route', async () => {
     await t.db.execute(`INSERT INTO roles (uid, key, name, caps, updated_at) VALUES ('ru-door', 'r-door', 'Kapı', '{"cancel":"off"}', '2026-01-01T00:00:00.000Z')`);
     const door = await t.login('r-door', 'kapi1');

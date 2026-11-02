@@ -6,7 +6,7 @@ import { money, seatLabel } from "../format.js";
 // sides inside it, "-" rows as aisles, "-1" as gaps, "SAHNE" below. layout = buildLayout(...). onSeat(cell, row) or null (preview).
 // fit: scale the whole map down to the container width ("Sığdır"; the day page opens at real size everywhere).
 // onSeat(cell, row, buttonEl) through one delegated click.
-export function SeatMap({ layout, onSeat, boss = false, fit = true, pending }) {
+export function SeatMap({ layout, onSeat, onSeatMenu, boss = false, fit = true, pending, picked, mode }) {
   const t = useT();
   const box = useRef(null);
   const inner = useRef(null);
@@ -34,22 +34,28 @@ export function SeatMap({ layout, onSeat, boss = false, fit = true, pending }) {
   };
   // One delegated click handler (no closure per seat); the latest onSeat/layout are read through refs so the
   // memoized <Seat>s never re-render for a new handler, only when their own primitive props change.
-  const live = useRef({ onSeat, byId: null });
+  const live = useRef({ onSeat, onSeatMenu, byId: null });
   const byId = useMemo(() => {
     const m = new Map();
     for (const r of layout.rows) if (r.cells) for (const c of r.cells) if (!c.gap && c.id != null) m.set(String(c.id), [c, r]);
     return m;
   }, [layout]);
-  live.current = { onSeat, byId };
+  live.current = { onSeat, onSeatMenu, byId };
   const click = useCallback((e) => {
     const b = e.target.closest?.("button.seat");
     const hit = b && live.current.byId.get(b.dataset.id);
     if (hit) live.current.onSeat?.(hit[0], hit[1], b);
   }, []);
+  // right click / long press / Menu key on a seat: the handler returns true when it opened something (then no native menu)
+  const ctx = useCallback((e) => {
+    const b = e.target.closest?.("button.seat");
+    const hit = b && live.current.byId.get(b.dataset.id);
+    if (hit && live.current.onSeatMenu?.(hit[0], hit[1], b)) e.preventDefault();
+  }, []);
   return (
     <div className={`seatmap-box${fit ? " is-fit" : ""}`} ref={box}>
       <div className="seatmap-sizer" style={{ width: natural.w * scale || undefined, height: natural.h * scale || undefined }}>
-        <div className="seatmap" ref={inner} onClick={onSeat ? click : undefined} style={{ "--cols": layout.width, transform: scale < 1 ? `scale(${scale})` : undefined }}>
+        <div className="seatmap" ref={inner} data-mode={mode} onClick={onSeat ? click : undefined} onContextMenu={onSeatMenu ? ctx : undefined} style={{ "--cols": layout.width, transform: scale < 1 ? `scale(${scale})` : undefined }}>
           {layout.rows.map((r) => r.type === "aisle" ? <div key={r.key} className="sm-aisle" aria-hidden /> : (
             <div key={r.key} className="sm-row" style={r.hue != null ? { "--h": r.hue } : undefined} data-tier={r.hue != null || undefined}>
               <span className="sm-price sm-price-l">{r.price != null ? money(r.price) : "—"}</span>
@@ -57,7 +63,7 @@ export function SeatMap({ layout, onSeat, boss = false, fit = true, pending }) {
               <span className="sm-letter">{r.row.toUpperCase()}</span>
               <span className="sm-walk" aria-hidden />
               {r.cells.map((c, i) => c.gap ? <span key={`g${i}`} className="sm-gap" aria-hidden /> : onSeat ? (
-                <Seat key={c.num} id={c.id} num={c.num} name={seatLabel(r.row, c.num)} status={c.status} label={label(c, r)} pending={!!pending?.has(c.id)} />
+                <Seat key={c.num} id={c.id} num={c.num} name={seatLabel(r.row, c.num)} status={c.status} label={label(c, r)} pending={!!pending?.has(c.id)} cx={c.cx} picked={!!picked?.has(c.id)} />
               ) : <span key={c.num} className="seat" data-s="free" data-tip={label(c, r)}>{c.num}</span>)}
               <span className="sm-walk" aria-hidden />
               <span className="sm-letter">{r.row.toUpperCase()}</span>
@@ -73,9 +79,9 @@ export function SeatMap({ layout, onSeat, boss = false, fit = true, pending }) {
 }
 
 // Primitive props only, so memo() skips every seat whose status/label/pending didn't change.
-const Seat = memo(function Seat({ id, num, name, status, label, pending }) {
+const Seat = memo(function Seat({ id, num, name, status, label, pending, cx, picked }) {
   return (
-    <button type="button" className="seat" data-id={id} data-seat={name} data-s={status} data-pending={pending || undefined}
+    <button type="button" className="seat" data-id={id} data-seat={name} data-s={status} data-pending={pending || undefined} data-cx={cx || undefined} data-picked={picked || undefined}
       disabled={status === "missing"} aria-label={label} data-tip={label} aria-pressed={status === "mine"}>{num}</button>
   );
 });

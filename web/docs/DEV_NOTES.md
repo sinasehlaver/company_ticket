@@ -22,7 +22,7 @@ Env: `DATABASE_URL` (default `file:<web>/data/company.db`, cwd-independent), `DA
 | `schema.sql` | migration 1 (all tables). New schema = append `{version: 2, sql}` to `MIGRATIONS`; never edit v1 once shipped |
 | `pricing.js` | `parseSchema(text)`, `formatSchema(rowPrices)`, `hallRows(hall)`, `rowPricesFromBody(prices, rows)`, `readPrices(hall, body) -> {prices, schema}`, `tiers(rowPrices) -> Map price -> [category, hue]`, `PriceError`, `MAX_PRICE` |
 | `seats.js` | `validateSeats(seats)`, `istanbulToUtc('YYYY-MM-DDTHH:MM') -> ISO \| null`, `createDay(db, eventRow, hallRow, body) -> dayId`, `MAX_COUNT`, `IST_OFFSET_MIN` |
-| `reserve.js` | `loadDay(db,id)`, `siblingDays(db,eventId)`, `dayVersion(db,dayId)`, `dayState(db,dayId,user)`, `toggleSeat(db,day,user,ticketId) -> 'held'\|'released'`, `countHold`, `countRelease`, `sell(db,day,user,ids) -> {sold,total}`, `cancel(db,day,user,body) -> {cancelled}`, `dayLogs(db,day,seat?)`, `parseSeat`, `parseSeatList`, `Conflict` (→ 409 + state), `FREE/HELD/SOLD` |
+| `reserve.js` | `loadDay(db,id)`, `siblingDays(db,eventId)`, `dayVersion(db,dayId)`, `dayState(db,dayId,user)`, `toggleSeat(db,day,user,ticketId) -> 'held'\|'released'`, `countHold`, `countRelease`, `sell(db,day,user,ids) -> {sold,total}`, `cancel(db,day,user,body) -> {cancelled}`, `moveTicket(db,day,user,{ticketId,toDayId,toTicketId}) -> {from,to,delta}` (edit a sale: cap cancel, logged as 'satış iptal' + 'satış', audit `sale.move`; the logs.action CHECK allows only those two), `dayLogs(db,day,seat?)`, `parseSeat`, `parseSeatList`, `Conflict` (→ 409 + state), `FREE/HELD/SOLD` |
 | `auth.js` | `hashPassword`, `verifyPassword`, `createUser(db, {username, password, role, disabled})`, `setUserDisabled(db, userId, bool)` (kills sessions), `sessionLoader(db)` (joins `roles` for caps), `requireCap(cap)`, `userWithCaps(row)`, `csrfCheck`, `originCheck`, `login(req,res,db,limiter)`, `logout(req,res,db)`, `makeLimiter({max, windowMs, clock})`, `httpError(status, msg)`, `COOKIE`, `SESSION_MS` |
 | `roles.js` | caps model: `SUPER`, `BUILTIN`, `CANCEL` (`off\|own\|any`), `FLAGS`, `CAP_KEYS`, `ALL_CAPS`, `NO_CAPS`, `DEFAULTS`, `capsFrom(text)`, `parseCaps(body)` (untrusted → caps or error), `parseRoleName`, `hasCap`, `capsWithin(a,b)`, `capsOf(db,key)`, `roleExists`, `roleChangeProblem(actor,key,targetCaps,nextCaps)`, `canManageRole(actor,key,caps)`, `seedRolesSql()` |
 | `bootstrap.js` | `bootstrap(db, env, log) -> created[]`, `STAFF`, `SEED_HALLS` |
@@ -30,7 +30,7 @@ Env: `DATABASE_URL` (default `file:<web>/data/company.db`, cwd-independent), `DA
 | `index.js` | boot: env check → createApp → bootstrap → listen |
 | `routes/index.js` | `ROUTES`, `route(method, path, cap, handler)`, `mountRoutes(app, ctx)` |
 | `routes/roles.js` | `GET/POST /api/roles`, `PUT/DELETE /api/roles/:key` |
-| `routes/days.js` | day page, state poll, toggle/count/sell/cancel, logs (phase 2) |
+| `routes/days.js` | day page, state poll, toggle/count/sell/cancel/move, logs (phase 2) |
 | `routes/{auth,halls,events}.js` | route registrations; `halls.js` also exports `hallOut(row)`, `getHall(db, id)` |
 | `routes/util.js` | `nameFrom(body, label)`, `one(db, sql, args, notFoundMsg)`, `json(text, fallback)` |
 | `test-helpers.js` | `makeApp({env})`, `makeClient(base)`, `PASSWORD`; `TEST_DB_URL` set → every `makeApp` drops all tables of that DB instead of a temp file (run with `--test-concurrency=1`) |

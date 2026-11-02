@@ -69,7 +69,9 @@ export async function dayState(db, dayId, user) {
   for (const r of t.rows) {
     const id = Number(r.id), price = Number(r.price), status = Number(r.status);
     const isMine = status === HELD && Number(r.owner) === user.id;
-    seats.push([id, r.row, r.num, price, Number(r.category), status, isMine, boss && status !== FREE ? r.username ?? null : null]);
+    // [8] = this user may cancel/move it (sold + cap any, or cap own and they sold it)
+    const cx = status === SOLD && (cancelMode === 'any' || (cancelMode === 'own' && Number(r.owner) === user.id));
+    seats.push([id, r.row, r.num, price, Number(r.category), status, isMine, boss && status !== FREE ? r.username ?? null : null, cx]);
     if (status === FREE) free++;
     else if (status === SOLD) { soldCount++; revenue += price; if (Number(r.owner) === user.id) soldMine++; }
     else if (boss && r.owner !== null) {
@@ -306,6 +308,39 @@ export async function cancel(db, day, user, body) {
     await t.execute({ sql: 'INSERT INTO day_versions (day_id, version) VALUES (?, 1) ON CONFLICT(day_id) DO UPDATE SET version = version + 1', args: [day.id] });
     await t.execute({ sql: 'INSERT INTO audit (at, username, action, detail) VALUES (?, ?, ?, ?)', args: [ts, user.username, 'sale.cancel', JSON.stringify({ dayId: day.id, seats: rows.map((x) => label(x.row, x.num)) })] });
     return { cancelled: rows.map(seatOut) };
+  });
+}
+
+/**
+ * Edit a sale = move a sold ticket to a free seat of any seated day (same or other event). body {ticketId, toDayId, toTicketId}.
+ * Needs cap cancel (own: only tickets this user sold). The new seat keeps the original seller as owner and takes the new
+ * seat's price; delta = new - old (> 0 customer pays, < 0 refund). -> {from, to, delta}. Logs 'satış iptal' (old) + 'satış' (new); the audit row 'sale.move' links them.
+ */
+export async function moveTicket(db, day, user, body) {
+  const mode = user.caps?.cancel;
+  if (mode !== 'own' && mode !== 'any') throw httpError(403, 'Bu işlem için yetkiniz yok');
+  needKind(day, 'seated');
+  const from = ticketId(body?.ticketId), toDayId = ticketId(body?.toDayId), to = ticketId(body?.toTicketId);
+  const target = await loadDay(db, toDayId);
+  needKind(target, 'seated');
+  return tx(db, async (t) => {
+    const a = (await t.execute({ sql: 'SELECT id, row, num, price, status, owner FROM tickets WHERE id = ? AND day_id = ?', args: [from, day.id] })).rows[0];
+    if (!a) throw httpError(404, 'Bu günde böyle bir koltuk yok');
+    if (Number(a.status) !== SOLD) throw new Conflict('Bu bilet artık satılmış değil');
+    if (mode === 'own' && Number(a.owner) !== user.id) throw httpError(403, 'Yalnızca kendi sattığınız biletleri değiştirebilirsiniz');
+    const b = (await t.execute({ sql: 'SELECT id, row, num, price, status FROM tickets WHERE id = ? AND day_id = ?', args: [to, target.id] })).rows[0];
+    if (!b) throw httpError(404, 'Hedef günde böyle bir koltuk yok');
+    if (Number(b.id) === Number(a.id)) throw httpError(400, 'Aynı koltuğa taşınamaz');
+    const ts = now();
+    const up = await t.execute({ sql: 'UPDATE tickets SET status = 2, owner = ?, last_modified_by = ?, updated_at = ? WHERE id = ? AND day_id = ? AND status = 0', args: [a.owner, user.username, ts, to, target.id] });
+    if (up.rowsAffected !== 1) throw new Conflict('Hedef koltuk artık boş değil');
+    const fr = await t.execute({ sql: 'UPDATE tickets SET status = 0, owner = NULL, last_modified_by = ?, updated_at = ? WHERE id = ? AND day_id = ? AND status = 2', args: [user.username, ts, from, day.id] });
+    if (fr.rowsAffected !== 1) throw new Conflict('Bilet o sırada değişti, tekrar deneyin');
+    await t.execute(logInsert([a], day.id, 'satış iptal', user.username, ts));
+    await t.execute(logInsert([b], target.id, 'satış', user.username, ts));
+    for (const d of new Set([day.id, target.id])) await t.execute({ sql: 'INSERT INTO day_versions (day_id, version) VALUES (?, 1) ON CONFLICT(day_id) DO UPDATE SET version = version + 1', args: [d] });
+    await t.execute({ sql: 'INSERT INTO audit (at, username, action, detail) VALUES (?, ?, ?, ?)', args: [ts, user.username, 'sale.move', JSON.stringify({ from: { dayId: day.id, seat: label(a.row, a.num) }, to: { dayId: target.id, seat: label(b.row, b.num) } })] });
+    return { from: seatOut(a), to: { ...seatOut(b), dayId: target.id }, delta: Number(b.price) - Number(a.price) };
   });
 }
 
